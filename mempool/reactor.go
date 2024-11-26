@@ -34,14 +34,25 @@ type Reactor struct {
 	// connections for different groups of peers.
 	activePersistentPeersSemaphore    *semaphore.Weighted
 	activeNonPersistentPeersSemaphore *semaphore.Weighted
+
+	privVal *types.PrivValidator
+
+	txBroadcastThreshold int32
+	thresholdPercent int32
 }
 
+
 // NewReactor returns a new Reactor with the given config and mempool.
-func NewReactor(config *cfg.MempoolConfig, mempool *CListMempool, waitSync bool) *Reactor {
+//TODO : check where the reactor is created, we will need the privValidator to sign transactions there.
+func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool *CListMempool, waitSync bool, thresholdPercent int32) *Reactor {
+
 	memR := &Reactor{
 		config:   config,
 		mempool:  mempool,
+		privVal : privVal,
 		waitSync: atomic.Bool{},
+		txBroadcastThreshold: thresholdPercent,
+		thresholdPercent: thresholdPercent,
 	}
 	memR.BaseReactor = *p2p.NewBaseReactor("Mempool", memR)
 	if waitSync {
@@ -52,6 +63,18 @@ func NewReactor(config *cfg.MempoolConfig, mempool *CListMempool, waitSync bool)
 	memR.activeNonPersistentPeersSemaphore = semaphore.NewWeighted(int64(memR.config.ExperimentalMaxGossipConnectionsToNonPersistentPeers))
 
 	return memR
+}
+
+func (memR *Reactor) calculateTxBroadcastThreshold() {
+    peerCount := memR.Switch.Peers().Size() // Dynamically get the number of peers
+    newThreshold := (memR.thresholdPercent * int32(peerCount)) / 100
+
+    atomic.StoreInt32(&memR.txBroadcastThreshold, newThreshold) // Atomic store
+
+    memR.Logger.Debug("Calculated txBroadcastThreshold",
+        "thresholdPercent", memR.thresholdPercent,
+        "peerCount", peerCount,
+        "txBroadcastThreshold", newThreshold)
 }
 
 // SetLogger sets the Logger on the reactor and the underlying mempool.
@@ -164,7 +187,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 	// broadcasting happens from go routines per peer
 }
 
-// TryAddTx attempts to add an incoming transaction to the mempool.
+// TryTx attempts to add an incoming transaction to the mempool.
 // When the sender is nil, it means the transaction comes from an RPC endpoint.
 func (memR *Reactor) TryAddTx(tx types.Tx, sender p2p.Peer) (*abcicli.ReqRes, error) {
 	senderID := noSender
@@ -222,6 +245,8 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		}
 	}
 
+	memR.calculateTxBroadcastThreshold()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		select {
@@ -271,6 +296,15 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			}
 		}
 
+		// TODOPB : is this enough ?
+		// TODOPB : will the network sync or should we add a mechanism to push to consensus
+		// if entry.SignatureCount() >= int(memR.txBroadcastThreshold) {
+        //     memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
+        //         "tx", log.NewLazySprintf("%X", entry.Tx().Hash()), "threshold", memR.txBroadcastThreshold)
+        //     continue
+        // }
+
+
 		// NOTE: Transaction batching was disabled due to
 		// https://github.com/tendermint/tendermint/issues/5796
 
@@ -287,6 +321,13 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		}
 
 		for {
+			memR.Logger.Debug("Sending transaction to peer",
+			"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
+
+			if err := memR.signAndValidate(entry.(*mempoolTx)); err != nil {
+				memR.Logger.Error("Failed to sign and validate transaction", "error", err)
+				continue
+			}
 			// The entry may have been removed from the mempool since it was
 			// chosen at the beginning of the loop. Skip it if that's the case.
 			if !memR.mempool.Contains(entry.Tx().Key()) {
@@ -300,6 +341,7 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 				ChannelID: MempoolChannel,
 				Message:   &protomem.Txs{Txs: [][]byte{entry.Tx()}},
 			})
+
 			if success {
 				break
 			}
@@ -316,4 +358,29 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			}
 		}
 	}
+}
+
+func (memR *Reactor) signAndValidate(entry Entry) error {
+	tx := entry.Tx()
+
+	// Validate existing signatures
+	if err := entry.ValidateSignatures(); err != nil {
+		return fmt.Errorf("signature validation failed: %w", err)
+	}
+
+	// Sign transaction
+	signature, err := (*memR.privVal).SignBytes(tx.Hash())
+	if err != nil {
+		return fmt.Errorf("signing failed: %w", err)
+	}
+
+	// Get public key
+	pubKey, err := (*memR.privVal).GetPubKey()
+	if err != nil {
+		return fmt.Errorf("public key retrieval failed: %w", err)
+	}
+
+	// Add signature to the entry
+	entry.AddSignature(pubKey, signature)
+	return nil
 }
