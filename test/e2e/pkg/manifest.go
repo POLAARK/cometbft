@@ -99,6 +99,15 @@ type Manifest struct {
 	// LogFormat specifies the log format to be set on all nodes.
 	LogFormat string `toml:"log_format"`
 
+	// Likeliness to propagate a message
+	ExperimentalGossipPropagationRate float32 `toml:"experimental_gossip_propagation_rate"`
+
+	// Send each transaction at most once over the wire
+	ExperimentalGossipSendOnce bool `toml:"experimental_gossip_send_once"`
+
+	// Inject custom reactors (see node/main.go#startNode for a list of possibilities)
+	ExperimentalCustomReactors map[string]string `toml:"experimental_custom_reactors"`
+
 	// Enable or disable Prometheus metrics on all nodes.
 	// Defaults to false (disabled).
 	Prometheus bool `toml:"prometheus"`
