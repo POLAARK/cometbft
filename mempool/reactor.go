@@ -152,6 +152,7 @@ func (memR *Reactor) AddPeer(peer p2p.Peer) {
 
 			memR.mempool.metrics.ActiveOutboundConnections.Add(1)
 			defer memR.mempool.metrics.ActiveOutboundConnections.Add(-1)
+			memR.calculateTxBroadcastThreshold()
 			memR.broadcastTxRoutine(peer)
 		}()
 	}
@@ -245,7 +246,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		}
 	}
 
-	memR.calculateTxBroadcastThreshold()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -298,11 +298,11 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 
 		// TODOPB : is this enough ?
 		// TODOPB : will the network sync or should we add a mechanism to push to consensus
-		// if entry.SignatureCount() >= int(memR.txBroadcastThreshold) {
-        //     memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
-        //         "tx", log.NewLazySprintf("%X", entry.Tx().Hash()), "threshold", memR.txBroadcastThreshold)
-        //     continue
-        // }
+		if entry.SignatureCount() >= int(memR.txBroadcastThreshold) {
+            memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
+                "tx", log.NewLazySprintf("%X", entry.Tx().Hash()), "threshold", memR.txBroadcastThreshold)
+            continue
+        }
 
 
 		// NOTE: Transaction batching was disabled due to
