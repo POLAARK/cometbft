@@ -64,9 +64,11 @@ func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) err
 
 // Validates All Signatures check if each signature is matching with the pubKey
 // If a invalidSignatures return an error;
-// TODO : Use the right signature system
-func (memTx *mempoolTx) ValidateSignatures() error {
-	var invalidSignatures []crypto.PubKey
+
+// TODOPB : Use the right signature system
+func (memTx *mempoolTx) ValidateSignaturesAndGetVotingPower(validators *types.ValidatorSet) (int64, error) {
+	validatorVotingPower := make(map[string]int64) // Track voting power per validator
+	var accumulatedVotingPower int64
 
 	memTx.signatures.Range(func(key, value interface{}) bool {
 		pubKey, ok := key.(crypto.PubKey)
@@ -78,16 +80,32 @@ func (memTx *mempoolTx) ValidateSignatures() error {
 			return false
 		}
 
-		if !pubKey.VerifySignature(memTx.tx, signature) {
-			invalidSignatures = append(invalidSignatures, pubKey)
+		// Find the corresponding validator
+		_, validator := validators.GetByAddress(pubKey.Address())
+		if validator == nil {
+			// Log and remove invalid signature (unknown validator)
+			fmt.Printf("Invalid signature from unknown validator: %v\n", pubKey.Address())
+			memTx.signatures.Delete(key)
+			return true
 		}
+
+		if !pubKey.VerifySignature(memTx.tx, signature) {
+			// Log and remove invalid signature (failed verification)
+			fmt.Printf("Invalid signature from validator: %v\n", validator.Address.String())
+			memTx.signatures.Delete(key)
+			return true
+		}
+
+		// Add the validator's voting power if not already added
+		if _, exists := validatorVotingPower[validator.Address.String()]; !exists {
+			validatorVotingPower[validator.Address.String()] = validator.VotingPower
+			accumulatedVotingPower += validator.VotingPower
+		}
+
 		return true
 	})
 
-	if len(invalidSignatures) > 0 {
-		return fmt.Errorf("invalid signatures found for pubKeys: %v", invalidSignatures)
-	}
-	return nil
+	return accumulatedVotingPower, nil
 }
 
 // Count the number of signature to check if we reach the number required to stop broadcasting

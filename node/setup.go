@@ -319,6 +319,7 @@ func createMempoolAndMempoolReactor(
 			privValidor,
 			mp,
 			waitSync,
+			state.Validators, // TODOPB : multi thread access /!\
 			66,
 		)
 		if config.Consensus.WaitForTxs() {

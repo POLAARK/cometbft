@@ -6,17 +6,20 @@ Prometheus and Grafana server for E2E testnets.
 
 First, `prometheus.yml` must exist in this directory. For example, generate one by running from
 `test/e2e`:
+
 ```bash
 make fast
 ./build/runner -f networks/simple.toml setup
 ```
 
 To start all monitoring services:
+
 ```bash
 docker compose up -d
 ```
 
 To stop all monitoring services:
+
 ```bash
 docker compose down
 ```

@@ -39,12 +39,13 @@ type Reactor struct {
 
 	txBroadcastThreshold int32
 	thresholdPercent int32
+	validators                  *types.ValidatorSet
 }
 
 
 // NewReactor returns a new Reactor with the given config and mempool.
-//TODO : check where the reactor is created, we will need the privValidator to sign transactions there.
-func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool *CListMempool, waitSync bool, thresholdPercent int32) *Reactor {
+//TODOPB : check where the reactor is created, we will need the privValidator to sign transactions there.
+func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool *CListMempool, waitSync bool, validators *types.ValidatorSet,  thresholdPercent int32) *Reactor {
 
 	memR := &Reactor{
 		config:   config,
@@ -53,7 +54,9 @@ func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool
 		waitSync: atomic.Bool{},
 		txBroadcastThreshold: thresholdPercent,
 		thresholdPercent: thresholdPercent,
+		validators:  validators,
 	}
+
 	memR.BaseReactor = *p2p.NewBaseReactor("Mempool", memR)
 	if waitSync {
 		memR.waitSync.Store(true)
@@ -246,7 +249,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		}
 	}
 
-
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		select {
@@ -296,15 +298,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			}
 		}
 
-		// TODOPB : is this enough ?
-		// TODOPB : will the network sync or should we add a mechanism to push to consensus
-		if entry.SignatureCount() >= int(memR.txBroadcastThreshold) {
-            memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
-                "tx", log.NewLazySprintf("%X", entry.Tx().Hash()), "threshold", memR.txBroadcastThreshold)
-            continue
-        }
-
-
 		// NOTE: Transaction batching was disabled due to
 		// https://github.com/tendermint/tendermint/issues/5796
 
@@ -320,16 +313,28 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			continue
 		}
 
-		for {
-			memR.Logger.Debug("Sending transaction to peer",
-			"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
+		txVotingPower, err := entry.ValidateSignaturesAndGetVotingPower(memR.validators)
+		if err != nil {
+			memR.Logger.Error("Failed to validate signatures", "error", err)
+			continue
+		}
 
-			if err := memR.signAndValidate(entry.(*mempoolTx)); err != nil {
-				memR.Logger.Error("Failed to sign and validate transaction", "error", err)
-				continue
-			}
-			// The entry may have been removed from the mempool since it was
-			// chosen at the beginning of the loop. Skip it if that's the case.
+		totalVotingPower := memR.validators.TotalVotingPower()
+		thresholdVotingPower := (totalVotingPower * 2) / 3
+
+		if txVotingPower >= thresholdVotingPower {
+			memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
+				"tx", log.NewLazySprintf("%X", txHash), "threshold", thresholdVotingPower)
+			continue
+		}
+
+		// Sign the transaction once before broadcasting.
+		if err := memR.signTransaction(entry.(*mempoolTx)); err != nil {
+			memR.Logger.Error("Failed to sign transaction", "error", err)
+			continue
+		}
+
+		for {
 			if !memR.mempool.Contains(entry.Tx().Key()) {
 				break
 			}
@@ -360,27 +365,18 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 	}
 }
 
-func (memR *Reactor) signAndValidate(entry Entry) error {
+func (memR *Reactor) signTransaction(entry Entry) error {
 	tx := entry.Tx()
-
-	// Validate existing signatures
-	if err := entry.ValidateSignatures(); err != nil {
-		return fmt.Errorf("signature validation failed: %w", err)
-	}
-
-	// Sign transaction
 	signature, err := (*memR.privVal).SignBytes(tx.Hash())
 	if err != nil {
-		return fmt.Errorf("signing failed: %w", err)
+		return  fmt.Errorf("signing failed: %w", err)
 	}
 
-	// Get public key
 	pubKey, err := (*memR.privVal).GetPubKey()
 	if err != nil {
-		return fmt.Errorf("public key retrieval failed: %w", err)
+		return  fmt.Errorf("public key retrieval failed: %w", err)
 	}
 
-	// Add signature to the entry
 	entry.AddSignature(pubKey, signature)
 	return nil
 }
