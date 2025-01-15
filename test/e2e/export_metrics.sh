@@ -20,6 +20,7 @@ export_metric() {
 
 	echo "Exporting metric: $METRIC"
 
+	# Try the curl command and capture its exit status
 	if ! curl -G "${PROMETHEUS_URL}/api/v1/query_range" \
 		--data-urlencode "query=${METRIC}" \
 		--data-urlencode "start=${START}" \
@@ -37,14 +38,14 @@ export_metric() {
 		exit 1
 	fi
 
-	# touch "${EXPORT_DIR}/${METRIC}.csv"
+	# First write the header
+	echo "metric,timestamp,value,job" >"${EXPORT_DIR}/${METRIC}.csv"
 
-	echo "metric,timestamp,value" >"${EXPORT_DIR}/${METRIC}.csv"
-
+	# Then append the data, including the job label
 	cat "${EXPORT_DIR}/${METRIC}.json" | jq -r '
         .data.result[] |
         .metric as $metric |
-        .values[] | [$metric.__name__, .[0], .[1]] | @csv' >>"${EXPORT_DIR}/${METRIC}.csv"
+        .values[] | [$metric.__name__, .[0], .[1], $metric.job] | @csv' >>"${EXPORT_DIR}/${METRIC}.csv"
 
 	echo "Saved to ${EXPORT_DIR}/${METRIC}.csv"
 }
