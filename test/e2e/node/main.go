@@ -24,6 +24,8 @@ import (
 	lrpc "github.com/cometbft/cometbft/light/rpc"
 	dbs "github.com/cometbft/cometbft/light/store/db"
 	"github.com/cometbft/cometbft/node"
+	"github.com/cometbft/cometbft/p2p"
+	p2pmock "github.com/cometbft/cometbft/p2p/mock"
 	"github.com/cometbft/cometbft/p2p/nodekey"
 	"github.com/cometbft/cometbft/privval"
 	"github.com/cometbft/cometbft/proxy"
@@ -154,6 +156,23 @@ func startNode(cfg *Config) error {
 	if err != nil {
 		return err
 	}
+
+	registry := map[string]p2p.Reactor{}
+	registry["p2p.mock.reactor"] = p2pmock.NewReactor()
+
+	customReactors := map[string]p2p.Reactor{}
+
+	for k, v := range cfg.ExperimentalCustomReactors {
+		logger.Info("In ExperimentalCustomReactors: ", k, v)
+		mock, ok := registry[v]
+		if ok {
+			customReactors[k] = mock
+			logger.Info("Mocking reactor : ", k, mock)
+		}
+	}
+
+	node.CustomReactors(customReactors)(n)
+
 	return n.Start()
 }
 

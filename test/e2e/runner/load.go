@@ -29,6 +29,10 @@ func Load(ctx context.Context, testnet *e2e.Testnet, useInternalIP bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	waitTime := 5
+	logger.Info("load", "msg", log.NewLazySprintf("[PFE] Waiting %v seconds for nodes to boot...", waitTime))
+	time.Sleep(time.Duration(waitTime) * time.Second)
+
 	logger.Info("load", "msg", log.NewLazySprintf("Starting transaction load (%v workers)...", workerPoolSize),
 		"tx/s", testnet.LoadTxBatchSize, "tx-bytes", testnet.LoadTxSizeBytes, "conn", testnet.LoadTxConnections,
 		"max-seconds", testnet.LoadMaxSeconds, "target-nodes", testnet.LoadTargetNodes)

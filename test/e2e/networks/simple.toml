@@ -1,4 +1,6 @@
 prometheus = true
+experimental_custom_reactors = {CONSENSUS = "p2p.mock.reactor"}
+
 [node.validator00]
 [node.validator01]
 [node.validator02]
