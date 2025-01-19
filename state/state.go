@@ -63,7 +63,7 @@ type State struct {
 	// we set s.LastHeightValidatorsChanged = s.LastBlockHeight + 1 + 1
 	// Extra +1 due to nextValSet delay.
 	NextValidators              *types.ValidatorSet
-	Validators                  *types.ValidatorSet
+	Validators                  *types.ValidatorSet // TODOPB : here is validatorSet
 	LastValidators              *types.ValidatorSet
 	LastHeightValidatorsChanged int64
 

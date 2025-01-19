@@ -44,7 +44,6 @@ type Reactor struct {
 
 
 // NewReactor returns a new Reactor with the given config and mempool.
-//TODOPB : check where the reactor is created, we will need the privValidator to sign transactions there.
 func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool *CListMempool, waitSync bool, validators *types.ValidatorSet,  thresholdPercent int32) *Reactor {
 
 	memR := &Reactor{

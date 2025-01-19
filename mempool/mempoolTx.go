@@ -67,8 +67,7 @@ func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) err
 
 // TODOPB : Use the right signature system
 func (memTx *mempoolTx) ValidateSignaturesAndGetVotingPower(validators *types.ValidatorSet) (int64, error) {
-	validatorVotingPower := make(map[string]int64) // Track voting power per validator
-	var accumulatedVotingPower int64
+	var accumulatedVotingPower int64 = 0;
 
 	memTx.signatures.Range(func(key, value interface{}) bool {
 		pubKey, ok := key.(crypto.PubKey)
@@ -97,10 +96,7 @@ func (memTx *mempoolTx) ValidateSignaturesAndGetVotingPower(validators *types.Va
 		}
 
 		// Add the validator's voting power if not already added
-		if _, exists := validatorVotingPower[validator.Address.String()]; !exists {
-			validatorVotingPower[validator.Address.String()] = validator.VotingPower
-			accumulatedVotingPower += validator.VotingPower
-		}
+		accumulatedVotingPower += validator.VotingPower
 
 		return true
 	})
