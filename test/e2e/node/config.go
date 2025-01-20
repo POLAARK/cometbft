@@ -36,10 +36,6 @@ type Config struct {
 	VoteExtensionsEnableHeight int64 `toml:"vote_extensions_enable_height"`
 	VoteExtensionsUpdateHeight int64 `toml:"vote_extensions_update_height"`
 
-	ExperimentalCustomReactors        map[string]string `toml:"experimental_custom_reactors"`
-	ExperimentalGossipPropagationRate float32           `toml:"experimental_gossip_propagation_rate"`
-	ExperimentalGossipSendOnce        bool              `toml:"experimental_gossip_send_once"`
-
 	ABCIRequestsLoggingEnabled bool `toml:"abci_requests_logging_enabled"`
 
 	ExperimentalKeyLayout string `toml:"experimental_db_key_layout"`
