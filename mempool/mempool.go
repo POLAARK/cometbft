@@ -182,7 +182,6 @@ type Entry interface {
 	// SignatureCount returns the current number of valid signatures for the transaction.
 	SignatureCount() int
 
-	Signatures() map[string][]byte
 }
 
 // An iterator is used to iterate through the mempool entries.

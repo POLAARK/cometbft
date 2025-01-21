@@ -38,13 +38,6 @@ func (memTx *mempoolTx) Tx() types.Tx {
 	return memTx.tx
 }
 
-// Signatures safely returns the signatures map.
-func (memTx *mempoolTx) Signatures() map[string][]byte {
-	memTx.signatureMutex.Lock()
-	defer memTx.signatureMutex.Unlock()
-	return memTx.signatures
-}
-
 func (memTx *mempoolTx) Height() int64 {
 	return atomic.LoadInt64(&memTx.height)
 }
@@ -86,13 +79,14 @@ func (memTx *mempoolTx) ValidateSignatures() error {
 
 // GetSignatures returns the signatures map, initializing it if necessary.
 func (memTx *mempoolTx) GetSignatures() map[string][]byte {
-	memTx.signatureMutex.Lock()
-	defer memTx.signatureMutex.Unlock()
+    memTx.signatureMutex.Lock()
+    defer memTx.signatureMutex.Unlock()
 
-	if memTx.signatures == nil {
-		memTx.signatures = make(map[string][]byte)
-	}
-	return memTx.signatures
+    copy := make(map[string][]byte)
+    for k, v := range memTx.signatures {
+        copy[k] = v
+    }
+    return copy
 }
 
 // SetSignatures safely sets the signatures map.

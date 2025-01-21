@@ -327,12 +327,12 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 
 		// TODOPB : is this enough ?
 		// TODOPB : will the network sync or should we add a mechanism to push to consensus
-		if entry.SignatureCount() >= int(memR.txBroadcastThreshold) {
-            memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
-                "tx", log.NewLazySprintf("%X", entry.Tx().Hash()), "threshold", memR.txBroadcastThreshold)
-            continue
-        }
-
+		if entry.SignatureCount() >= int(atomic.LoadInt32(&memR.txBroadcastThreshold)) {
+			memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
+				"tx", log.NewLazySprintf("%X", entry.Tx().Hash()),
+				"threshold", atomic.LoadInt32(&memR.txBroadcastThreshold))
+			continue
+		}
 
 		// NOTE: Transaction batching was disabled due to
 		// https://github.com/tendermint/tendermint/issues/5796
@@ -366,7 +366,7 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			memR.Logger.Debug("Sending transaction to peer",
 				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 
-			signaturesMap := entry.Signatures()
+			signaturesMap := entry.GetSignatures()
 
 			success := peer.Send(p2p.Envelope{
 				ChannelID: MempoolChannel,

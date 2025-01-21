@@ -5,7 +5,13 @@ import seaborn as sns
 # File path to the CSV
 CSV_FILE = '../monitoring/exported_data/transactions_vs_size.csv'
 
-def generate_barchart(csv_file):
+def generate_barchart(csv_file, max_tx_count=None):
+    """
+    Generates a bar chart showing transaction sizes by validators for a given transaction count threshold.
+
+    :param csv_file: Path to the CSV file.
+    :param max_tx_count: Optional threshold for transaction count. Only rows with tx_count <= max_tx_count will be plotted.
+    """
     # Load the CSV into a DataFrame
     try:
         df = pd.read_csv(csv_file)
@@ -23,6 +29,15 @@ def generate_barchart(csv_file):
     df['tx_count'] = pd.to_numeric(df['tx_count'])
     df['tx_size'] = pd.to_numeric(df['tx_size'])
 
+    # Filter the DataFrame based on the max_tx_count threshold
+    if max_tx_count is not None:
+        df = df[df['tx_count'] <= max_tx_count]
+
+    # Check if the filtered DataFrame is empty
+    if df.empty:
+        print(f"No data to plot for transaction count <= {max_tx_count}.")
+        return
+
     # Plot the bar chart
     plt.figure(figsize=(12, 6))
     sns.barplot(x='tx_count', y='tx_size', hue='validator', data=df)
@@ -30,7 +45,7 @@ def generate_barchart(csv_file):
     # Set labels and title
     plt.xlabel('Transaction Count')
     plt.ylabel('Transaction Size (Bytes)')
-    plt.title('Transaction Size by Validator for Each Transaction Count')
+    plt.title(f'Transaction Size by Validator for Transaction Count ≤ {max_tx_count}')
     plt.legend(title='Validator')
     plt.grid(axis='y', linestyle='--', alpha=0.7)
 
@@ -38,5 +53,5 @@ def generate_barchart(csv_file):
     plt.tight_layout()
     plt.show()
 
-# Call the function
-generate_barchart(CSV_FILE)
+# Call the function with a transaction count threshold
+generate_barchart(CSV_FILE, max_tx_count=30)
