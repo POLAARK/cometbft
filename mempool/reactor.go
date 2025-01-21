@@ -150,8 +150,8 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			memR.Logger.Error("Received empty Txs message from peer", "src", e.Src)
 			return
 		}
-
 		for _, txBytes := range protoTxs {
+			memR.mempool.metrics.BytesReceived.Add(float64(len(txBytes)))
 			_, _ = memR.TryAddTx(types.Tx(txBytes), e.Src)
 		}
 
@@ -296,11 +296,15 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			memR.Logger.Debug("Sending transaction to peer",
 				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 
+				txMessage := &protomem.Txs{Txs: [][]byte{entry.Tx()}}
+
+
 			success := peer.Send(p2p.Envelope{
 				ChannelID: MempoolChannel,
-				Message:   &protomem.Txs{Txs: [][]byte{entry.Tx()}},
+				Message:   txMessage,
 			})
 			if success {
+				memR.mempool.metrics.BytesSent.Add(float64(txMessage.Size()))
 				break
 			}
 
