@@ -168,15 +168,21 @@ type Entry interface {
 	// IsSender returns whether we received the transaction from the given peer ID.
 	IsSender(peerID nodekey.ID) bool
 
-	// Add a signature to the list of signatures.
-	AddSignature(pubKey crypto.PubKey, signature []byte) error
-
-
-	// Validates All Signatures check if each signature is matching with the pubKey
 	ValidateSignatures() error
 
-	// Count the number of signature to check if we reach the number required to stop broadcasting
+	// GetSignatures retrieves the current map of public keys to their signatures.
+	GetSignatures() map[string][]byte
+
+	// SetSignatures replaces the current map of signatures with the given map.
+	SetSignatures(signatures map[string][]byte)
+
+	// AddSignature adds a new signature to the transaction for the given public key.
+	AddSignature(pubKey crypto.PubKey, signature []byte)
+
+	// SignatureCount returns the current number of valid signatures for the transaction.
 	SignatureCount() int
+
+	Signatures() map[string][]byte
 }
 
 // An iterator is used to iterate through the mempool entries.

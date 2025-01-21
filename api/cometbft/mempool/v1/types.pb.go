@@ -22,16 +22,73 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+// Transaction represents a single transaction and its associated signatures.
+type Transaction struct {
+	// The raw transaction bytes.
+	TransactionBytes []byte `protobuf:"bytes,1,opt,name=transactionBytes,proto3" json:"transactionBytes,omitempty"`
+	// A map of public keys to their corresponding signatures.
+	// The key is the public key (string), and the value is the signature (bytes).
+	Signatures map[string][]byte `protobuf:"bytes,2,rep,name=signatures,proto3" json:"signatures,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (m *Transaction) Reset()         { *m = Transaction{} }
+func (m *Transaction) String() string { return proto.CompactTextString(m) }
+func (*Transaction) ProtoMessage()    {}
+func (*Transaction) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d8bb39f484575b79, []int{0}
+}
+func (m *Transaction) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Transaction) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Transaction.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Transaction) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Transaction.Merge(m, src)
+}
+func (m *Transaction) XXX_Size() int {
+	return m.Size()
+}
+func (m *Transaction) XXX_DiscardUnknown() {
+	xxx_messageInfo_Transaction.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Transaction proto.InternalMessageInfo
+
+func (m *Transaction) GetTransactionBytes() []byte {
+	if m != nil {
+		return m.TransactionBytes
+	}
+	return nil
+}
+
+func (m *Transaction) GetSignatures() map[string][]byte {
+	if m != nil {
+		return m.Signatures
+	}
+	return nil
+}
+
 // Txs contains a list of transactions from the mempool.
 type Txs struct {
-	Txs [][]byte `protobuf:"bytes,1,rep,name=txs,proto3" json:"txs,omitempty"`
+	// The list of transactions with their signatures.
+	Txs []*Transaction `protobuf:"bytes,1,rep,name=txs,proto3" json:"txs,omitempty"`
 }
 
 func (m *Txs) Reset()         { *m = Txs{} }
 func (m *Txs) String() string { return proto.CompactTextString(m) }
 func (*Txs) ProtoMessage()    {}
 func (*Txs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d8bb39f484575b79, []int{0}
+	return fileDescriptor_d8bb39f484575b79, []int{1}
 }
 func (m *Txs) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -60,62 +117,9 @@ func (m *Txs) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Txs proto.InternalMessageInfo
 
-func (m *Txs) GetTxs() [][]byte {
+func (m *Txs) GetTxs() []*Transaction {
 	if m != nil {
 		return m.Txs
-	}
-	return nil
-}
-
-// TxWithSignatures represents a transaction along with its signatures.
-type TxWithSignatures struct {
-	Tx         []byte   `protobuf:"bytes,1,opt,name=tx,proto3" json:"tx,omitempty"`
-	Signatures [][]byte `protobuf:"bytes,2,rep,name=signatures,proto3" json:"signatures,omitempty"`
-}
-
-func (m *TxWithSignatures) Reset()         { *m = TxWithSignatures{} }
-func (m *TxWithSignatures) String() string { return proto.CompactTextString(m) }
-func (*TxWithSignatures) ProtoMessage()    {}
-func (*TxWithSignatures) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d8bb39f484575b79, []int{1}
-}
-func (m *TxWithSignatures) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *TxWithSignatures) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_TxWithSignatures.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *TxWithSignatures) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TxWithSignatures.Merge(m, src)
-}
-func (m *TxWithSignatures) XXX_Size() int {
-	return m.Size()
-}
-func (m *TxWithSignatures) XXX_DiscardUnknown() {
-	xxx_messageInfo_TxWithSignatures.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_TxWithSignatures proto.InternalMessageInfo
-
-func (m *TxWithSignatures) GetTx() []byte {
-	if m != nil {
-		return m.Tx
-	}
-	return nil
-}
-
-func (m *TxWithSignatures) GetSignatures() [][]byte {
-	if m != nil {
-		return m.Signatures
 	}
 	return nil
 }
@@ -127,7 +131,6 @@ type Message struct {
 	// Types that are valid to be assigned to Sum:
 	//
 	//	*Message_Txs
-	//	*Message_TxWithSignatures
 	Sum isMessage_Sum `protobuf_oneof:"sum"`
 }
 
@@ -173,12 +176,8 @@ type isMessage_Sum interface {
 type Message_Txs struct {
 	Txs *Txs `protobuf:"bytes,1,opt,name=txs,proto3,oneof" json:"txs,omitempty"`
 }
-type Message_TxWithSignatures struct {
-	TxWithSignatures *TxWithSignatures `protobuf:"bytes,2,opt,name=tx_with_signatures,json=txWithSignatures,proto3,oneof" json:"tx_with_signatures,omitempty"`
-}
 
-func (*Message_Txs) isMessage_Sum()              {}
-func (*Message_TxWithSignatures) isMessage_Sum() {}
+func (*Message_Txs) isMessage_Sum() {}
 
 func (m *Message) GetSum() isMessage_Sum {
 	if m != nil {
@@ -194,48 +193,94 @@ func (m *Message) GetTxs() *Txs {
 	return nil
 }
 
-func (m *Message) GetTxWithSignatures() *TxWithSignatures {
-	if x, ok := m.GetSum().(*Message_TxWithSignatures); ok {
-		return x.TxWithSignatures
-	}
-	return nil
-}
-
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*Message) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
 		(*Message_Txs)(nil),
-		(*Message_TxWithSignatures)(nil),
 	}
 }
 
 func init() {
+	proto.RegisterType((*Transaction)(nil), "cometbft.mempool.v1.Transaction")
+	proto.RegisterMapType((map[string][]byte)(nil), "cometbft.mempool.v1.Transaction.SignaturesEntry")
 	proto.RegisterType((*Txs)(nil), "cometbft.mempool.v1.Txs")
-	proto.RegisterType((*TxWithSignatures)(nil), "cometbft.mempool.v1.TxWithSignatures")
 	proto.RegisterType((*Message)(nil), "cometbft.mempool.v1.Message")
 }
 
 func init() { proto.RegisterFile("cometbft/mempool/v1/types.proto", fileDescriptor_d8bb39f484575b79) }
 
 var fileDescriptor_d8bb39f484575b79 = []byte{
-	// 262 bytes of a gzipped FileDescriptorProto
+	// 297 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x92, 0x4f, 0xce, 0xcf, 0x4d,
 	0x2d, 0x49, 0x4a, 0x2b, 0xd1, 0xcf, 0x4d, 0xcd, 0x2d, 0xc8, 0xcf, 0xcf, 0xd1, 0x2f, 0x33, 0xd4,
 	0x2f, 0xa9, 0x2c, 0x48, 0x2d, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x12, 0x86, 0x29, 0xd0,
-	0x83, 0x2a, 0xd0, 0x2b, 0x33, 0x54, 0x12, 0xe7, 0x62, 0x0e, 0xa9, 0x28, 0x16, 0x12, 0xe0, 0x62,
-	0x2e, 0xa9, 0x28, 0x96, 0x60, 0x54, 0x60, 0xd6, 0xe0, 0x09, 0x02, 0x31, 0x95, 0x9c, 0xb8, 0x04,
-	0x42, 0x2a, 0xc2, 0x33, 0x4b, 0x32, 0x82, 0x33, 0xd3, 0xf3, 0x12, 0x4b, 0x4a, 0x8b, 0x52, 0x8b,
-	0x85, 0xf8, 0xb8, 0x98, 0x4a, 0x2a, 0x24, 0x18, 0x15, 0x18, 0x35, 0x78, 0x82, 0x98, 0x4a, 0x2a,
-	0x84, 0xe4, 0xb8, 0xb8, 0x8a, 0xe1, 0xb2, 0x12, 0x4c, 0x60, 0xcd, 0x48, 0x22, 0x4a, 0x53, 0x19,
-	0xb9, 0xd8, 0x7d, 0x53, 0x8b, 0x8b, 0x13, 0xd3, 0x53, 0x85, 0x74, 0x60, 0x36, 0x30, 0x6a, 0x70,
-	0x1b, 0x49, 0xe8, 0x61, 0x71, 0x8b, 0x5e, 0x48, 0x45, 0xb1, 0x07, 0x03, 0xd8, 0x76, 0xa1, 0x50,
-	0x2e, 0xa1, 0x92, 0x8a, 0xf8, 0xf2, 0xcc, 0x92, 0x8c, 0x78, 0x14, 0x1b, 0x40, 0x9a, 0x55, 0x71,
-	0x68, 0x46, 0x75, 0xac, 0x07, 0x43, 0x90, 0x40, 0x09, 0x9a, 0x98, 0x13, 0x2b, 0x17, 0x73, 0x71,
-	0x69, 0xae, 0x93, 0xdf, 0x89, 0x47, 0x72, 0x8c, 0x17, 0x1e, 0xc9, 0x31, 0x3e, 0x78, 0x24, 0xc7,
-	0x38, 0xe1, 0xb1, 0x1c, 0xc3, 0x85, 0xc7, 0x72, 0x0c, 0x37, 0x1e, 0xcb, 0x31, 0x44, 0x99, 0xa4,
-	0x67, 0x96, 0x64, 0x94, 0x26, 0x81, 0x6c, 0xd0, 0x87, 0x87, 0x27, 0x9c, 0x91, 0x58, 0x90, 0xa9,
-	0x8f, 0x25, 0x94, 0x93, 0xd8, 0xc0, 0x01, 0x6c, 0x0c, 0x08, 0x00, 0x00, 0xff, 0xff, 0xbb, 0x0e,
-	0xf8, 0xa4, 0x83, 0x01, 0x00, 0x00,
+	0x83, 0x2a, 0xd0, 0x2b, 0x33, 0x54, 0x3a, 0xc5, 0xc8, 0xc5, 0x1d, 0x52, 0x94, 0x98, 0x57, 0x9c,
+	0x98, 0x5c, 0x92, 0x99, 0x9f, 0x27, 0xa4, 0xc5, 0x25, 0x50, 0x82, 0xe0, 0x3a, 0x55, 0x96, 0xa4,
+	0x16, 0x4b, 0x30, 0x2a, 0x30, 0x6a, 0xf0, 0x04, 0x61, 0x88, 0x0b, 0x05, 0x70, 0x71, 0x15, 0x67,
+	0xa6, 0xe7, 0x25, 0x96, 0x94, 0x16, 0xa5, 0x16, 0x4b, 0x30, 0x29, 0x30, 0x6b, 0x70, 0x1b, 0x19,
+	0xe8, 0x61, 0xb1, 0x45, 0x0f, 0xc9, 0x06, 0xbd, 0x60, 0xb8, 0x16, 0xd7, 0xbc, 0x92, 0xa2, 0xca,
+	0x20, 0x24, 0x33, 0xa4, 0x6c, 0xb9, 0xf8, 0xd1, 0xa4, 0x85, 0x04, 0xb8, 0x98, 0xb3, 0x53, 0x2b,
+	0xc1, 0x6e, 0xe0, 0x0c, 0x02, 0x31, 0x85, 0x44, 0xb8, 0x58, 0xcb, 0x12, 0x73, 0x4a, 0x53, 0x25,
+	0x98, 0xc0, 0xee, 0x82, 0x70, 0xac, 0x98, 0x2c, 0x18, 0x95, 0x2c, 0xb9, 0x98, 0x43, 0x2a, 0x8a,
+	0x85, 0x8c, 0xb8, 0x98, 0x4b, 0x2a, 0x40, 0xce, 0x06, 0x39, 0x48, 0x81, 0x90, 0x83, 0x82, 0x40,
+	0x8a, 0x95, 0xec, 0xb8, 0xd8, 0x7d, 0x53, 0x8b, 0x8b, 0x13, 0xd3, 0x53, 0x85, 0x74, 0x60, 0xda,
+	0x19, 0x35, 0xb8, 0x8d, 0x24, 0xb0, 0x6b, 0xaf, 0x28, 0xf6, 0x60, 0x00, 0x6b, 0x74, 0x62, 0xe5,
+	0x62, 0x2e, 0x2e, 0xcd, 0x75, 0xf2, 0x3b, 0xf1, 0x48, 0x8e, 0xf1, 0xc2, 0x23, 0x39, 0xc6, 0x07,
+	0x8f, 0xe4, 0x18, 0x27, 0x3c, 0x96, 0x63, 0xb8, 0xf0, 0x58, 0x8e, 0xe1, 0xc6, 0x63, 0x39, 0x86,
+	0x28, 0x93, 0xf4, 0xcc, 0x92, 0x8c, 0xd2, 0x24, 0x90, 0x39, 0xfa, 0xf0, 0x28, 0x82, 0x33, 0x12,
+	0x0b, 0x32, 0xf5, 0xb1, 0x44, 0x5c, 0x12, 0x1b, 0x38, 0xce, 0x8c, 0x01, 0x01, 0x00, 0x00, 0xff,
+	0xff, 0x97, 0xe8, 0xa9, 0x62, 0xd6, 0x01, 0x00, 0x00,
+}
+
+func (m *Transaction) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Transaction) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Transaction) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Signatures) > 0 {
+		for k := range m.Signatures {
+			v := m.Signatures[k]
+			baseI := i
+			if len(v) > 0 {
+				i -= len(v)
+				copy(dAtA[i:], v)
+				i = encodeVarintTypes(dAtA, i, uint64(len(v)))
+				i--
+				dAtA[i] = 0x12
+			}
+			i -= len(k)
+			copy(dAtA[i:], k)
+			i = encodeVarintTypes(dAtA, i, uint64(len(k)))
+			i--
+			dAtA[i] = 0xa
+			i = encodeVarintTypes(dAtA, i, uint64(baseI-i))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.TransactionBytes) > 0 {
+		i -= len(m.TransactionBytes)
+		copy(dAtA[i:], m.TransactionBytes)
+		i = encodeVarintTypes(dAtA, i, uint64(len(m.TransactionBytes)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *Txs) Marshal() (dAtA []byte, err error) {
@@ -260,51 +305,17 @@ func (m *Txs) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = l
 	if len(m.Txs) > 0 {
 		for iNdEx := len(m.Txs) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Txs[iNdEx])
-			copy(dAtA[i:], m.Txs[iNdEx])
-			i = encodeVarintTypes(dAtA, i, uint64(len(m.Txs[iNdEx])))
+			{
+				size, err := m.Txs[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintTypes(dAtA, i, uint64(size))
+			}
 			i--
 			dAtA[i] = 0xa
 		}
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *TxWithSignatures) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *TxWithSignatures) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TxWithSignatures) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if len(m.Signatures) > 0 {
-		for iNdEx := len(m.Signatures) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Signatures[iNdEx])
-			copy(dAtA[i:], m.Signatures[iNdEx])
-			i = encodeVarintTypes(dAtA, i, uint64(len(m.Signatures[iNdEx])))
-			i--
-			dAtA[i] = 0x12
-		}
-	}
-	if len(m.Tx) > 0 {
-		i -= len(m.Tx)
-		copy(dAtA[i:], m.Tx)
-		i = encodeVarintTypes(dAtA, i, uint64(len(m.Tx)))
-		i--
-		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -362,27 +373,6 @@ func (m *Message_Txs) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
-func (m *Message_TxWithSignatures) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *Message_TxWithSignatures) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	if m.TxWithSignatures != nil {
-		{
-			size, err := m.TxWithSignatures.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintTypes(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x12
-	}
-	return len(dAtA) - i, nil
-}
 func encodeVarintTypes(dAtA []byte, offset int, v uint64) int {
 	offset -= sovTypes(v)
 	base := offset
@@ -394,6 +384,31 @@ func encodeVarintTypes(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
+func (m *Transaction) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.TransactionBytes)
+	if l > 0 {
+		n += 1 + l + sovTypes(uint64(l))
+	}
+	if len(m.Signatures) > 0 {
+		for k, v := range m.Signatures {
+			_ = k
+			_ = v
+			l = 0
+			if len(v) > 0 {
+				l = 1 + len(v) + sovTypes(uint64(len(v)))
+			}
+			mapEntrySize := 1 + len(k) + sovTypes(uint64(len(k))) + l
+			n += mapEntrySize + 1 + sovTypes(uint64(mapEntrySize))
+		}
+	}
+	return n
+}
+
 func (m *Txs) Size() (n int) {
 	if m == nil {
 		return 0
@@ -401,27 +416,8 @@ func (m *Txs) Size() (n int) {
 	var l int
 	_ = l
 	if len(m.Txs) > 0 {
-		for _, b := range m.Txs {
-			l = len(b)
-			n += 1 + l + sovTypes(uint64(l))
-		}
-	}
-	return n
-}
-
-func (m *TxWithSignatures) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Tx)
-	if l > 0 {
-		n += 1 + l + sovTypes(uint64(l))
-	}
-	if len(m.Signatures) > 0 {
-		for _, b := range m.Signatures {
-			l = len(b)
+		for _, e := range m.Txs {
+			l = e.Size()
 			n += 1 + l + sovTypes(uint64(l))
 		}
 	}
@@ -452,24 +448,224 @@ func (m *Message_Txs) Size() (n int) {
 	}
 	return n
 }
-func (m *Message_TxWithSignatures) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.TxWithSignatures != nil {
-		l = m.TxWithSignatures.Size()
-		n += 1 + l + sovTypes(uint64(l))
-	}
-	return n
-}
 
 func sovTypes(x uint64) (n int) {
 	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozTypes(x uint64) (n int) {
 	return sovTypes(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *Transaction) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowTypes
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Transaction: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Transaction: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TransactionBytes", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TransactionBytes = append(m.TransactionBytes[:0], dAtA[iNdEx:postIndex]...)
+			if m.TransactionBytes == nil {
+				m.TransactionBytes = []byte{}
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Signatures", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowTypes
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthTypes
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Signatures == nil {
+				m.Signatures = make(map[string][]byte)
+			}
+			var mapkey string
+			mapvalue := []byte{}
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowTypes
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTypes
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthTypes
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthTypes
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var mapbyteLen uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowTypes
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						mapbyteLen |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intMapbyteLen := int(mapbyteLen)
+					if intMapbyteLen < 0 {
+						return ErrInvalidLengthTypes
+					}
+					postbytesIndex := iNdEx + intMapbyteLen
+					if postbytesIndex < 0 {
+						return ErrInvalidLengthTypes
+					}
+					if postbytesIndex > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = make([]byte, mapbyteLen)
+					copy(mapvalue, dAtA[iNdEx:postbytesIndex])
+					iNdEx = postbytesIndex
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipTypes(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if (skippy < 0) || (iNdEx+skippy) < 0 {
+						return ErrInvalidLengthTypes
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Signatures[mapkey] = mapvalue
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipTypes(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthTypes
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *Txs) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -504,7 +700,7 @@ func (m *Txs) Unmarshal(dAtA []byte) error {
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Txs", wireType)
 			}
-			var byteLen int
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowTypes
@@ -514,139 +710,25 @@ func (m *Txs) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= int(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if byteLen < 0 {
+			if msglen < 0 {
 				return ErrInvalidLengthTypes
 			}
-			postIndex := iNdEx + byteLen
+			postIndex := iNdEx + msglen
 			if postIndex < 0 {
 				return ErrInvalidLengthTypes
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Txs = append(m.Txs, make([]byte, postIndex-iNdEx))
-			copy(m.Txs[len(m.Txs)-1], dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipTypes(dAtA[iNdEx:])
-			if err != nil {
+			m.Txs = append(m.Txs, &Transaction{})
+			if err := m.Txs[len(m.Txs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthTypes
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *TxWithSignatures) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowTypes
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: TxWithSignatures: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TxWithSignatures: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Tx", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTypes
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthTypes
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthTypes
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Tx = append(m.Tx[:0], dAtA[iNdEx:postIndex]...)
-			if m.Tx == nil {
-				m.Tx = []byte{}
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Signatures", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTypes
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthTypes
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthTypes
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Signatures = append(m.Signatures, make([]byte, postIndex-iNdEx))
-			copy(m.Signatures[len(m.Signatures)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -732,41 +814,6 @@ func (m *Message) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Sum = &Message_Txs{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TxWithSignatures", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowTypes
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthTypes
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthTypes
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &TxWithSignatures{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Sum = &Message_TxWithSignatures{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

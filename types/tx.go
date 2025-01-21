@@ -188,6 +188,51 @@ func TxProofFromProto(pb cmtproto.TxProof) (TxProof, error) {
 	return pbtp, nil
 }
 
+
+// // ToProto converts a types.Tx to a Protobuf Transaction.
+// func (tx Tx) ToProto(signatures map[crypto.PubKey][]byte) *mempoolv1.Transaction {
+// 	// Convert signatures map from crypto.PubKey to string
+// 	signatureMap := make(map[string][]byte)
+// 	for pubKey, signature := range signatures {
+// 		// Serialize public key (e.g., Base64 encoding)
+// 		pubKeyStr := base64.StdEncoding.EncodeToString(pubKey.Bytes())
+// 		signatureMap[pubKeyStr] = signature
+// 	}
+
+// 	return &mempoolv1.Transaction{
+// 		TransactionBytes:         transactionBytes,
+// 		Signatures: signatureMap,
+// 	}
+// }
+
+// func (transactionBytes *Tx) ToProtobufBytes(signatures map[crypto.PubKey][]byte) ([]byte, error) {
+// 	// Convert signatures to Protobuf-compatible format
+// 	signatureMap := make(map[string][]byte)
+// 	for pubKey, signature := range signatures {
+// 		pubKeyStr := base64.StdEncoding.EncodeToString(pubKey.Bytes())
+// 		signatureMap[pubKeyStr] = signature
+// 	}
+
+// 	protoTx := &mempoolv1.Transaction{
+// 		TransactionBytes:         *transactionBytes,
+// 		Signatures: signatureMap,
+// 	}
+// 	return protoTx.Marshal()
+// }
+
+// // Unwrap Protobuf Transaction from Tx (byte array)
+// func (tx Tx) FromProtobuf() (*mempoolv1.Transaction, error) {
+// 	// Create an empty Protobuf Transaction object
+// 	protoTx := &mempoolv1.Transaction{}
+
+// 	// Use proto.Unmarshal to populate the Protobuf object
+// 	if err := protoTx.Unmarshal([]byte(tx)); err != nil {
+// 		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
+// 	}
+
+// 	return protoTx, nil
+// }
+
 // ComputeProtoSizeForTxs wraps the transactions in cmtproto.Data{} and calculates the size.
 // https://developers.google.com/protocol-buffers/docs/encoding
 func ComputeProtoSizeForTxs(txs []Tx) int64 {

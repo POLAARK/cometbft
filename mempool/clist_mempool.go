@@ -11,6 +11,7 @@ import (
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/config"
+	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/internal/clist"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
@@ -975,4 +976,26 @@ func (rc *recheck) setRecheckFull() bool {
 // progress.
 func (rc *recheck) consideredFull() bool {
 	return rc.recheckFull.Load()
+}
+
+func (mem *CListMempool) AddSignatures(txKey types.TxKey, signatures map[crypto.PubKey][]byte) error {
+	mem.txsMtx.Lock()
+	defer mem.txsMtx.Unlock()
+
+	elem, ok := mem.txsMap[txKey]
+	if !ok {
+		return ErrTxNotFound // Transaction must already exist
+	}
+
+	memTx := elem.Value.(*mempoolTx)
+	if memTx.signatures == nil {
+		memTx.signatures = make(map[string][]byte)
+	}
+
+	for pubKey, signature := range signatures {
+		memTx.signatures[string(pubKey.Bytes())] = signature
+	}
+
+	mem.logger.Debug("Added signatures to transaction", "txKey", txKey, "signatures", len(signatures))
+	return nil
 }

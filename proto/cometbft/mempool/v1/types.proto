@@ -3,9 +3,20 @@ package cometbft.mempool.v1;
 
 option go_package = "github.com/cometbft/cometbft/api/cometbft/mempool/v1";
 
-// Txs contains a list of transaction from the mempool.
+// Transaction represents a single transaction and its associated signatures.
+message Transaction {
+  // The raw transaction bytes.
+  bytes transactionBytes = 1;
+
+  // A map of public keys to their corresponding signatures.
+  // The key is the public key (string), and the value is the signature (bytes).
+  map<string, bytes> signatures = 2;
+}
+
+// Txs contains a list of transactions from the mempool.
 message Txs {
-  repeated bytes txs = 1;
+  // The list of transactions with their signatures.
+  repeated Transaction txs = 1;
 }
 
 // Message is an abstract mempool message.

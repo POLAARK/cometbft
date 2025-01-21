@@ -673,24 +673,48 @@ func tryAddTxs(t *testing.T, reactor *Reactor, txs types.Txs) {
 }
 
 func TestMempoolVectors(t *testing.T) {
+	// Test cases to validate encoding
 	testCases := []struct {
-		testName string
-		tx       []byte
-		expBytes string
+		testName        string
+		txBytes         []byte
+		signatures      map[string][]byte
+		expectedEncoded string
 	}{
-		{"tx 1", []byte{123}, "0a030a017b"},
-		{"tx 2", []byte("proto encoding in mempool"), "0a1b0a1970726f746f20656e636f64696e6720696e206d656d706f6f6c"},
+		{
+			testName:        "tx 1",
+			txBytes:         []byte{123},
+			signatures:      map[string][]byte{"pubKey1": []byte("signature1")},
+			expectedEncoded: "0a190a170a030a017b12100a077075624b65793112097369676e617475726531",
+		},
+		{
+			testName:        "tx 2",
+			txBytes:         []byte("proto encoding in mempool"),
+			signatures:      map[string][]byte{"pubKey2": []byte("signature2")},
+			expectedEncoded: "0a2d0a2b0a1b0a1970726f746f20656e636f64696e6720696e206d656d706f6f6c12100a077075624b65793212097369676e617475726532",
+		},
 	}
 
 	for _, tc := range testCases {
+		// Create a Transaction object
+		tx := &memproto.Transaction{
+			TransactionBytes: tc.txBytes,
+			Signatures:       tc.signatures,
+		}
+
+		// Create a Message with Txs field set
 		msg := memproto.Message{
 			Sum: &memproto.Message_Txs{
-				Txs: &memproto.Txs{Txs: [][]byte{tc.tx}},
+				Txs: &memproto.Txs{
+					Txs: []*memproto.Transaction{tx},
+				},
 			},
 		}
-		bz, err := msg.Marshal()
+
+		// Marshal the message into bytes
+		encoded, err := msg.Marshal()
 		require.NoError(t, err, tc.testName)
 
-		require.Equal(t, tc.expBytes, hex.EncodeToString(bz), tc.testName)
+		// Compare the encoded bytes with the expected result
+		require.Equal(t, tc.expectedEncoded, hex.EncodeToString(encoded), tc.testName)
 	}
 }

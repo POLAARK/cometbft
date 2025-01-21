@@ -15,6 +15,8 @@ const (
 // Use an alias so Unmarshal methods (with ptr receivers) are available too.
 type Address = bytes.HexBytes
 
+
+
 func AddressHash(bz []byte) Address {
 	return Address(tmhash.SumTruncated(bz))
 }
@@ -53,3 +55,4 @@ type BatchVerifier interface {
 	// that signatures were added to the batch).
 	Verify() (bool, []bool)
 }
+

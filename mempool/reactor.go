@@ -12,6 +12,7 @@ import (
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	protomem "github.com/cometbft/cometbft/api/cometbft/mempool/v1"
 	cfg "github.com/cometbft/cometbft/config"
+	"github.com/cometbft/cometbft/crypto/crypto_implementation"
 	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cometbft/cometbft/p2p"
 	tcpconn "github.com/cometbft/cometbft/p2p/transport/tcp/conn"
@@ -97,10 +98,20 @@ func (memR *Reactor) OnStart() error {
 // StreamDescriptors implements Reactor by returning the list of channels for this
 // reactor.
 func (memR *Reactor) StreamDescriptors() []p2p.StreamDescriptor {
+	// Create a largestTx byte slice to simulate the maximum transaction size.
 	largestTx := make([]byte, memR.config.MaxTxBytes)
+
+	// TODOPB should be use an initiated tx map ?
+	// Construct a Transaction with the largestTx and an empty signatures map.
+	largestTransaction := &protomem.Transaction{
+		TransactionBytes:         largestTx,
+		Signatures: map[string][]byte{}, // Empty signatures map for the example.
+	}
+
+	// Create a batch message with the new structure of Txs containing Transactions.
 	batchMsg := protomem.Message{
 		Sum: &protomem.Message_Txs{
-			Txs: &protomem.Txs{Txs: [][]byte{largestTx}},
+			Txs: &protomem.Txs{Txs: []*protomem.Transaction{largestTransaction}},
 		},
 	}
 
@@ -162,6 +173,7 @@ func (memR *Reactor) AddPeer(peer p2p.Peer) {
 // It adds any received transactions to the mempool.
 func (memR *Reactor) Receive(e p2p.Envelope) {
 	memR.Logger.Debug("Receive", "src", e.Src, "chId", e.ChannelID, "msg", e.Message)
+
 	switch msg := e.Message.(type) {
 	case *protomem.Txs:
 		if memR.WaitSync() {
@@ -175,8 +187,25 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			return
 		}
 
-		for _, txBytes := range protoTxs {
-			_, _ = memR.TryAddTx(types.Tx(txBytes), e.Src)
+		for _, protoTransaction := range protoTxs {
+			tx := types.Tx(protoTransaction.TransactionBytes)
+			_, err := memR.TryAddTx(tx, e.Src)
+			if err != nil {
+				memR.Logger.Error("Failed to add transaction", "err", err)
+				continue
+			}
+
+			// ADD SIGNATURES AFTER !
+			signatures := protoTransaction.Signatures
+			convertedSignatures, err := crypto_implementation.ConvertSignatures(signatures)
+			if err != nil {
+				fmt.Printf("Error converting signatures: %v\n", err)
+				return
+			}
+			err = memR.mempool.AddSignatures(tx.Key(), convertedSignatures)
+			if err != nil {
+				memR.Logger.Error("Failed to add signatures to transaction", "err", err)
+			}
 		}
 
 	default:
@@ -185,7 +214,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 		return
 	}
 
-	// broadcasting happens from go routines per peer
+	// Broadcasting happens from go routines per peer
 }
 
 // TryTx attempts to add an incoming transaction to the mempool.
@@ -337,9 +366,18 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			memR.Logger.Debug("Sending transaction to peer",
 				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 
+			signaturesMap := entry.Signatures()
+
 			success := peer.Send(p2p.Envelope{
 				ChannelID: MempoolChannel,
-				Message:   &protomem.Txs{Txs: [][]byte{entry.Tx()}},
+				Message: &protomem.Txs{
+					Txs: []*protomem.Transaction{
+						{
+							TransactionBytes: entry.Tx(),
+							Signatures:       signaturesMap,
+						},
+					},
+				},
 			})
 
 			if success {
@@ -369,7 +407,7 @@ func (memR *Reactor) signAndValidate(entry Entry) error {
 	}
 
 	// Sign transaction
-	signature, err := (*memR.privVal).SignBytes(tx.Hash())
+	signature, err := (*memR.privVal).SignBytes(tx) // TODOPB: SHOULD WE ONLY SIGN THE HASH OR THE WHOLE TX
 	if err != nil {
 		return fmt.Errorf("signing failed: %w", err)
 	}
@@ -380,7 +418,7 @@ func (memR *Reactor) signAndValidate(entry Entry) error {
 		return fmt.Errorf("public key retrieval failed: %w", err)
 	}
 
-	// Add signature to the entry
+	// Add the new signature
 	entry.AddSignature(pubKey, signature)
 	return nil
 }

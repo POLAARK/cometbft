@@ -220,3 +220,10 @@ func (b *BatchVerifier) Add(key crypto.PubKey, msg, signature []byte) error {
 func (b *BatchVerifier) Verify() (bool, []bool) {
 	return b.BatchVerifier.Verify(crypto.CReader())
 }
+
+func PubKeyFromBytes(pubKeyBytes []byte) (crypto.PubKey, error) {
+	if len(pubKeyBytes) != PubKeySize {
+		return nil, fmt.Errorf("invalid public key size: got %d, expected %d", len(pubKeyBytes), PubKeySize)
+	}
+	return PubKey(pubKeyBytes), nil
+}

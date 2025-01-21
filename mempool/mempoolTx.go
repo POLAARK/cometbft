@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cometbft/cometbft/crypto"
+	"github.com/cometbft/cometbft/crypto/crypto_implementation"
 	"github.com/cometbft/cometbft/p2p/nodekey"
 	"github.com/cometbft/cometbft/types"
 )
@@ -19,11 +20,15 @@ type mempoolTx struct {
 	lane      LaneID
 	seq       int64
 	timestamp time.Time // time when entry was created
+
 	// signatures of peers who've sent us this tx (as a map for quick lookups).
-	// signatures: PubKey -> signature
-	signatures sync.Map
+	// Map keys are string representations of PubKey.
+	signatures map[string][]byte
+	signatureMutex sync.Mutex // Protects access to the signatures map
+
 	// Number of valid signatures
-	signatureCount int32 // atomic counter for signatures
+	signatureCount int32 // Atomic counter for signatures
+
 	// ids of peers who've sent us this tx (as a map for quick lookups).
 	// senders: PeerID -> struct{}
 	senders sync.Map
@@ -31,6 +36,13 @@ type mempoolTx struct {
 
 func (memTx *mempoolTx) Tx() types.Tx {
 	return memTx.tx
+}
+
+// Signatures safely returns the signatures map.
+func (memTx *mempoolTx) Signatures() map[string][]byte {
+	memTx.signatureMutex.Lock()
+	defer memTx.signatureMutex.Unlock()
+	return memTx.signatures
 }
 
 func (memTx *mempoolTx) Height() int64 {
@@ -45,57 +57,73 @@ func (memTx *mempoolTx) IsSender(peerID nodekey.ID) bool {
 	_, ok := memTx.senders.Load(peerID)
 	return ok
 }
-// Add a signature to the list of signatures. // TODO : return true to follow code convention.
-func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) error {
-	// Validate the signature before adding it
-	if !pubKey.VerifySignature(memTx.tx, signature) {
-		return fmt.Errorf("invalid signature for transaction")
-	}
 
-	// Attempt to store the signature
-	_, loaded := memTx.signatures.LoadOrStore(pubKey, signature)
-	if !loaded {
-		// Increment the counter only if it's a new signature
-		atomic.AddInt32(&memTx.signatureCount, 1)
-	}
-
-	return nil
-}
-
-// Validates All Signatures check if each signature is matching with the pubKey
-// If a invalidSignatures return an error;
-// TODO : Use the right signature system
+// ValidateSignatures checks if each signature matches its corresponding public key.
+// If any signature is invalid, it returns an error.
 func (memTx *mempoolTx) ValidateSignatures() error {
-	var invalidSignatures []crypto.PubKey
+	var invalidSignatures []string
 
-	memTx.signatures.Range(func(key, value interface{}) bool {
-		pubKey, ok := key.(crypto.PubKey)
-		if !ok {
-			return false
-		}
-		signature, ok := value.([]byte)
-		if !ok {
-			return false
+	memTx.signatureMutex.Lock()
+	defer memTx.signatureMutex.Unlock()
+
+	for pubKeyStr, signature := range memTx.signatures {
+		pubKey, err := crypto_implementation.PubKeyFromBytes([]byte(pubKeyStr))
+		if err != nil {
+			return fmt.Errorf("invalid publicKey from bytes: %s", pubKeyStr)
 		}
 
 		if !pubKey.VerifySignature(memTx.tx, signature) {
-			invalidSignatures = append(invalidSignatures, pubKey)
+			invalidSignatures = append(invalidSignatures, pubKeyStr)
 		}
-		return true
-	})
+	}
 
 	if len(invalidSignatures) > 0 {
-		return fmt.Errorf("invalid signatures found for pubKeys: %v", invalidSignatures)
+		return fmt.Errorf("invalid signatures found for public keys: %v", invalidSignatures)
 	}
+
 	return nil
 }
 
-// Count the number of signature to check if we reach the number required to stop broadcasting
+// GetSignatures returns the signatures map, initializing it if necessary.
+func (memTx *mempoolTx) GetSignatures() map[string][]byte {
+	memTx.signatureMutex.Lock()
+	defer memTx.signatureMutex.Unlock()
+
+	if memTx.signatures == nil {
+		memTx.signatures = make(map[string][]byte)
+	}
+	return memTx.signatures
+}
+
+// SetSignatures safely sets the signatures map.
+func (memTx *mempoolTx) SetSignatures(signatures map[string][]byte) {
+	memTx.signatureMutex.Lock()
+	defer memTx.signatureMutex.Unlock()
+
+	memTx.signatures = signatures
+}
+
+// AddSignature safely adds a signature to the map and increments the signature count.
+func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) {
+	pubKeyStr := string(pubKey.Bytes())
+
+	memTx.signatureMutex.Lock()
+	defer memTx.signatureMutex.Unlock()
+
+	if memTx.signatures == nil {
+		memTx.signatures = make(map[string][]byte)
+	}
+
+	memTx.signatures[pubKeyStr] = signature
+	atomic.AddInt32(&memTx.signatureCount, 1)
+}
+
+// SignatureCount returns the number of valid signatures.
 func (memTx *mempoolTx) SignatureCount() int {
 	return int(atomic.LoadInt32(&memTx.signatureCount))
 }
 
-// Add the peer ID to the list of senders. Return true iff it exists already in the list.
+// AddSender adds the peer ID to the list of senders. Returns true if it already existed.
 func (memTx *mempoolTx) addSender(peerID nodekey.ID) bool {
 	if len(peerID) == 0 {
 		return false

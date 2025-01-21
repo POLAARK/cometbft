@@ -1,0 +1,81 @@
+ipv6 = true
+initial_height = 2
+key_type = ""
+abci_protocol = "unix"
+upgrade_version = "cometbft/e2e-node:local-version"
+load_tx_size_bytes = 0
+load_tx_batch_size = 100
+load_tx_connections = 0
+
+[initial_state]
+  state1 = "a"
+  state2 = "b"
+  state3 = "c"
+
+[validators]
+  validator01 = 100
+  validator02 = 100
+  validator03 = 100
+  validator04 = 100
+
+[node]
+  [node.validator01]
+    mode = "validator"
+    version = "cometbft/e2e-node:local-version"
+    persistent_peers = ["validator02"]
+    database = "goleveldb"
+    privval_protocol = "file"
+    start_at = 0
+    mempool_version = "v1"
+    state_sync = false
+    snapshot_interval = 10
+    retain_blocks = 100
+    perturb = ["upgrade"]
+
+  [node.validator02]
+    mode = "validator"
+    version = "cometbft/e2e-node:local-version"
+    persistent_peers = ["validator01"]
+    database = "rocksdb"
+    privval_protocol = "file"
+    start_at = 0
+    mempool_version = "v1"
+    state_sync = false
+    snapshot_interval = 5
+    retain_blocks = 0
+    perturb = ["restart"]
+
+  [node.validator03]
+    mode = "validator"
+    version = "cometbft/e2e-node:local-version"
+    seeds = ["seed01"]
+    database = "badgerdb"
+    privval_protocol = "file"
+    start_at = 0
+    mempool_version = "v1"
+    state_sync = false
+    snapshot_interval = 5
+    retain_blocks = 50
+
+  [node.validator04]
+    mode = "validator"
+    version = "cometbft/e2e-node:local-version"
+    seeds = ["seed01"]
+    database = "badgerdb"
+    privval_protocol = "file"
+    start_at = 0
+    mempool_version = "v1"
+    state_sync = false
+    snapshot_interval = 5
+    retain_blocks = 50
+
+  [node.seed01]
+    mode = "seed"
+    version = "cometbft/e2e-node:local-version"
+    database = "badgerdb"
+    privval_protocol = "file"
+    start_at = 0
+    mempool_version = "v1"
+    state_sync = false
+    snapshot_interval = 0
+    retain_blocks = 14
