@@ -189,6 +189,10 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 
 		for _, protoTransaction := range protoTxs {
 			tx := types.Tx(protoTransaction.TransactionBytes)
+
+			memR.mempool.metrics.BytesReceived.Add(float64(protoTransaction.Size()))
+
+
 			_, err := memR.TryAddTx(tx, e.Src)
 			if err != nil {
 				memR.Logger.Error("Failed to add transaction", "err", err)
@@ -368,19 +372,23 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 
 			signaturesMap := entry.GetSignatures()
 
-			success := peer.Send(p2p.Envelope{
-				ChannelID: MempoolChannel,
-				Message: &protomem.Txs{
-					Txs: []*protomem.Transaction{
-						{
-							TransactionBytes: entry.Tx(),
-							Signatures:       signaturesMap,
-						},
+			txMessage := &protomem.Txs{
+				Txs: []*protomem.Transaction{
+					{
+						TransactionBytes: entry.Tx(),
+						Signatures:       signaturesMap,
 					},
 				},
+			}
+
+
+			success := peer.Send(p2p.Envelope{
+				ChannelID: MempoolChannel,
+				Message:   txMessage,
 			})
 
 			if success {
+				memR.mempool.metrics.BytesSent.Add(float64(txMessage.Size()))
 				break
 			}
 

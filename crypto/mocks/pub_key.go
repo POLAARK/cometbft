@@ -3,7 +3,8 @@
 package mocks
 
 import (
-	crypto "github.com/cometbft/cometbft/crypto"
+	bytes "github.com/cometbft/cometbft/libs/bytes"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -12,27 +13,27 @@ type PubKey struct {
 	mock.Mock
 }
 
-// Address provides a mock function with given fields:
-func (_m *PubKey) Address() crypto.Address {
+// Address provides a mock function with no fields
+func (_m *PubKey) Address() bytes.HexBytes {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Address")
 	}
 
-	var r0 crypto.Address
-	if rf, ok := ret.Get(0).(func() crypto.Address); ok {
+	var r0 bytes.HexBytes
+	if rf, ok := ret.Get(0).(func() bytes.HexBytes); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(crypto.Address)
+			r0 = ret.Get(0).(bytes.HexBytes)
 		}
 	}
 
 	return r0
 }
 
-// Bytes provides a mock function with given fields:
+// Bytes provides a mock function with no fields
 func (_m *PubKey) Bytes() []byte {
 	ret := _m.Called()
 
@@ -52,7 +53,7 @@ func (_m *PubKey) Bytes() []byte {
 	return r0
 }
 
-// Type provides a mock function with given fields:
+// Type provides a mock function with no fields
 func (_m *PubKey) Type() string {
 	ret := _m.Called()
 

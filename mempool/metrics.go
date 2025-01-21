@@ -71,7 +71,9 @@ type Metrics struct {
 	// Cumulative time spent rechecking transactions
 	RecheckDurationSeconds metrics.Gauge
 
-	BytesSent metrics.Counter
+	// Bytes sent by the peer
+	BytesSent metrics.Gauge
 
-	BytesReceived metrics.Counter
+	// Bytes received by the peer
+	BytesReceived metrics.Gauge
 }
