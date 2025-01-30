@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/semaphore"
+
+	"os"
 
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	protomem "github.com/cometbft/cometbft/api/cometbft/mempool/v1"
@@ -46,6 +49,18 @@ type Reactor struct {
 // NewReactor returns a new Reactor with the given config and mempool.
 //TODO : check where the reactor is created, we will need the privValidator to sign transactions there.
 func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool *CListMempool, waitSync bool, thresholdPercent int32) *Reactor {
+
+	thresholdEnv, exists := os.LookupEnv("MEMPOOL_THRESHOLD_PERCENT") // Read environment variable
+	if !exists {
+		panic("❌ Fatal Error: MEMPOOL_THRESHOLD_PERCENT environment variable is not set!")
+	}
+
+	val, err := strconv.Atoi(thresholdEnv)
+	if err != nil {
+		panic(fmt.Sprintf("❌ Fatal Error: Invalid MEMPOOL_THRESHOLD_PERCENT value: %s (must be an integer)", thresholdEnv))
+	}
+
+	thresholdPercent = int32(val)
 
 	memR := &Reactor{
 		config:   config,
@@ -191,6 +206,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			tx := types.Tx(protoTransaction.TransactionBytes)
 
 			memR.mempool.metrics.BytesReceived.Add(float64(protoTransaction.Size()))
+			memR.mempool.metrics.TransactionsReceived.Add(1)
 
 
 			_, err := memR.TryAddTx(tx, e.Src)
@@ -389,6 +405,7 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 
 			if success {
 				memR.mempool.metrics.BytesSent.Add(float64(txMessage.Size()))
+				memR.mempool.metrics.TransactionsSent.Add(float64(len(txMessage.Txs)))
 				break
 			}
 

@@ -19,11 +19,15 @@ docker-debug: docker-clean
 
 # This will compile a binary to be executed in a container, set up a slim container, and copy only
 # the binary to it.
-docker-fast: docker-clean
+export MEMPOOL_THRESHOLD_PERCENT
+print-env:
+	@echo "MEMPOOL_THRESHOLD_PERCENT is set to: $(MEMPOOL_THRESHOLD_PERCENT)"
+
+docker-fast: docker-clean print-env
 	@echo "Compiling binary for slim E2E Docker image"
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/node ./node
-	@echo "Building slim E2E Docker image"
-	@docker build --tag $(IMAGE_TAG) -f docker/Dockerfile.fast .
+	@echo "Building slim E2E Docker image with MEMPOOL_THRESHOLD_PERCENT=$(MEMPOOL_THRESHOLD_PERCENT)"
+	@docker build --build-arg MEMPOOL_THRESHOLD_PERCENT=$(MEMPOOL_THRESHOLD_PERCENT) --tag $(IMAGE_TAG) -f docker/Dockerfile.fast .
 
 docker-clean:
 	@docker rmi $(IMAGE_TAG) 2>/dev/null; true

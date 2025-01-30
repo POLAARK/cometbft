@@ -100,13 +100,25 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Namespace: namespace,
 			Subsystem: MetricsSubsystem,
 			Name:      "bytes_sent",
-			Help:      "",
+			Help:      "Bytes sent by the peer",
 		}, labels).With(labelsAndValues...),
 		BytesReceived: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
 			Namespace: namespace,
 			Subsystem: MetricsSubsystem,
 			Name:      "bytes_received",
-			Help:      "",
+			Help:      "Bytes received by the peer",
+		}, labels).With(labelsAndValues...),
+		TransactionsSent: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "transactions_sent",
+			Help:      "Number of transactions sent",
+		}, labels).With(labelsAndValues...),
+		TransactionsReceived: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "transactions_received",
+			Help:      "Number of transactions received",
 		}, labels).With(labelsAndValues...),
 	}
 }
@@ -128,5 +140,7 @@ func NopMetrics() *Metrics {
 		RecheckDurationSeconds:    discard.NewGauge(),
 		BytesSent:                 discard.NewGauge(),
 		BytesReceived:             discard.NewGauge(),
+		TransactionsSent:          discard.NewGauge(),
+		TransactionsReceived:      discard.NewGauge(),
 	}
 }

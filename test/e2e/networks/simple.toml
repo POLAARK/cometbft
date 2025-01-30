@@ -1,4 +1,6 @@
-log_level = "debug"
+log_level = "info"
+load_tx_size_bytes = 500
+load_tx_batch_size = 5
 prometheus = true
 [node.validator00]
 [node.validator01]
@@ -6,3 +8,13 @@ prometheus = true
 [node.validator03]
 [node.validator04]
 [node.validator05]
+[node.validator06]
+[node.validator07]
+[node.validator08]
+[node.validator09]
+[node.validator10]
+[node.validator11]
+[node.validator12]
+[node.validator13]
+[node.validator14]
+[node.validator15]

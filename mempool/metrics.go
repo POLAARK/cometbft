@@ -76,4 +76,10 @@ type Metrics struct {
 
 	// Bytes received by the peer
 	BytesReceived metrics.Gauge
+
+	//Number of transactions sent
+	TransactionsSent metrics.Gauge
+
+	//Number of transactions received
+	TransactionsReceived metrics.Gauge
 }
