@@ -20,7 +20,10 @@ def get_metrics(start_time, end_time, step="1s", validator_indices=None):
         "bytes_sent": "cometbft_mempool_bytes_sent",
         "bytes_received": "cometbft_mempool_bytes_received",
         "transactions_sent": "cometbft_mempool_transactions_sent",
-        "transactions_received": "cometbft_mempool_transactions_received"
+        "transactions_received": "cometbft_mempool_transactions_received",
+        "signatures_received": "cometbft_mempool_signatures_sent_size",
+        "signatures_sent": "cometbft_mempool_signatures_received_size",
+        "total_transactions_in_consensus": "cometbft_consensus_total_txs"
     }
 
     all_metrics = {key: {} for key in queries}
@@ -43,7 +46,6 @@ def get_metrics(start_time, end_time, step="1s", validator_indices=None):
         })
 
         json_response = response.json()
-        print(f"Query: {query}, Response: {json_response}")
 
         if response.status_code == 200 and "data" in json_response:
             results = json_response["data"].get("result", [])
@@ -119,7 +121,7 @@ def run_tests(payload_size, num_validators, threshold, load_time):
     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "load", "--time", str(load_time)], cwd="test/e2e", check=True)
 
     # Capture end time after load completes
-    end_time = time.time()
+    end_time = time.time() +2
 
     return start_time, end_time
 
@@ -141,7 +143,8 @@ def save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, a
         writer = csv.writer(file)
         if write_header:
             writer.writerow(["Timestamp", "Payload", "Validators", "Threshold", "Load Time",
-                             "Bytes Sent", "Bytes Received", "Tx Sent", "Tx Received"])
+                            "Bytes Sent", "Bytes Received", "Tx Sent", "Tx Received",
+                            "Signatures Received", "Signatures Sent", "Total Tx In Consensus"])
 
         for timestamp in timestamps:
             writer.writerow([
@@ -153,14 +156,17 @@ def save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, a
                 all_metrics["bytes_sent"].get(timestamp, 0),
                 all_metrics["bytes_received"].get(timestamp, 0),
                 all_metrics["transactions_sent"].get(timestamp, 0),
-                all_metrics["transactions_received"].get(timestamp, 0)
+                all_metrics["transactions_received"].get(timestamp, 0),
+                all_metrics["signatures_received"].get(timestamp, 0),
+                all_metrics["signatures_sent"].get(timestamp, 0),
+                all_metrics["total_transactions_in_consensus"].get(timestamp, 0)
             ])
 
 
 if __name__ == "__main__":
     for payload in [100, 250, 500]:  # Varying payload sizes
-        for validators in [4, 8, 12, 16]:  # Different validator configurations
-            for threshold in [50, 75, 90]:  # Different mempool thresholds
+        for validators in [4, 8, 12, 16, 20]:  # Different validator configurations
+            for threshold in [10, 25, 40, 50, 75, 90]:  # Different mempool thresholds
                 for load_time in [40]:  # Different load durations
                     print(f"Running test: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
 
@@ -172,7 +178,7 @@ if __name__ == "__main__":
                     start_time, end_time = run_tests(payload, validators, threshold, load_time)
 
                     # Ensure Prometheus collects data before querying
-                    time.sleep(2)  # Short wait for Prometheus to process
+                    time.sleep(4)  # Short wait for Prometheus to process
 
                     validator_indices = list(range(validators))
                     timestamps, all_metrics = get_metrics(
@@ -188,7 +194,6 @@ if __name__ == "__main__":
 
                     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
                     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "stop"], cwd="test/e2e", check=True)
-                    # Start network
                     try:
                         subprocess.run(["./build/runner", "-f", "networks/simple.toml", "cleanup"], cwd="test/e2e", check=True)
                         time.sleep(2)
