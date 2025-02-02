@@ -82,4 +82,10 @@ type Metrics struct {
 
 	//Number of transactions received
 	TransactionsReceived metrics.Gauge
+
+	//Signatures sent message size
+	SignaturesSentSize metrics.Gauge
+
+	//Signatures received message size
+	SignaturesReceivedSize metrics.Gauge
 }

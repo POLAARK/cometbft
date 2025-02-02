@@ -120,6 +120,18 @@ func PrometheusMetrics(namespace string, labelsAndValues ...string) *Metrics {
 			Name:      "transactions_received",
 			Help:      "Number of transactions received",
 		}, labels).With(labelsAndValues...),
+		SignaturesSentSize: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "signatures_sent_size",
+			Help:      "Signatures sent message size",
+		}, labels).With(labelsAndValues...),
+		SignaturesReceivedSize: prometheus.NewGaugeFrom(stdprometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: MetricsSubsystem,
+			Name:      "signatures_received_size",
+			Help:      "Signatures received message size",
+		}, labels).With(labelsAndValues...),
 	}
 }
 
@@ -142,5 +154,7 @@ func NopMetrics() *Metrics {
 		BytesReceived:             discard.NewGauge(),
 		TransactionsSent:          discard.NewGauge(),
 		TransactionsReceived:      discard.NewGauge(),
+		SignaturesSentSize:        discard.NewGauge(),
+		SignaturesReceivedSize:    discard.NewGauge(),
 	}
 }
