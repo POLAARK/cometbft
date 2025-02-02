@@ -19,10 +19,12 @@ def main():
     for file in all_files:
         try:
             df_temp = pd.read_csv(file, parse_dates=["Timestamp"])
-            df_list.append(df_temp)
+            df_last = df_temp.tail(1).copy()
+            if df_last["Threshold"].iloc[0] == 100:
+                continue
+            df_list.append(df_last)
         except Exception as e:
             print(f"Impossible de lire {file} : {e}")
-
     if not df_list:
         print("Aucune donnée CSV valide n'a pu être lue.")
         return

@@ -18,7 +18,8 @@ def main():
     for file in csv_files:
         try:
             temp_df = pd.read_csv(file)
-            df_list.append(temp_df)
+            last_row = temp_df.tail(1)
+            df_list.append(last_row)
         except Exception as e:
             print(f"Error reading {file}: {e}")
     if not df_list:
