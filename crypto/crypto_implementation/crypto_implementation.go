@@ -15,15 +15,15 @@ func PubKeyFromBytes(pubKeyBytes []byte) (crypto.PubKey, error) {
 	return ed25519.PubKey(pubKeyBytes), nil
 }
 
-func ConvertSignatures(signatures map[string][]byte) (map[crypto.PubKey][]byte, error) {
-	converted := make(map[crypto.PubKey][]byte, len(signatures))
+func ConvertSignatures(signatures map[string][]byte) (map[string][]byte, error) {
+	converted := make(map[string][]byte, len(signatures))
 
 	for key, value := range signatures {
 		pubKey, err := PubKeyFromBytes([]byte(key))
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert public key: %w", err)
 		}
-		converted[pubKey] = value
+		converted[string(pubKey.Bytes())] = value
 	}
 
 	return converted, nil

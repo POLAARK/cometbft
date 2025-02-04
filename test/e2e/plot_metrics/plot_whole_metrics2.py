@@ -29,7 +29,7 @@ def main():
     df = pd.concat(df_list, ignore_index=True)
 
     # Filter only configurations with Payload == 500 and Validators > 10
-    df = df[(df["Payload"] == 500) & (df["Validators"] > 10)]
+    df = df[(df["Payload"] == 250) & (df["Validators"] > 10)]
 
     # Create a combined Config column
     df["Config"] = df.apply(lambda row: f"PL={row['Payload']}, VAL={row['Validators']}", axis=1)
