@@ -981,20 +981,17 @@ func (mem *CListMempool) AddSignatures(txKey types.TxKey, signatures map[string]
 	mem.txsMtx.Lock()
 	defer mem.txsMtx.Unlock()
 
-	elem, ok := mem.txsMap[txKey]
-	if !ok {
-		return ErrTxNotFound // Transaction must already exist
+	if elem, ok := mem.txsMap[txKey]; ok {
+		memTx := elem.Value.(*mempoolTx)
+		if memTx.signatures == nil {
+			memTx.signatures = signatures
+		} else {
+			for pubKey, signature := range signatures {
+				memTx.signatures[pubKey] = signature
+			}
+		}
+		mem.logger.Debug("Added signatures to transaction", "txKey", txKey, "signatures", len(signatures))
+		return nil
 	}
-
-	memTx := elem.Value.(*mempoolTx)
-	if memTx.signatures == nil {
-		memTx.signatures = make(map[string][]byte)
-	}
-
-	for pubKey, signature := range signatures {
-		memTx.signatures[pubKey] = signature
-	}
-
-	mem.logger.Debug("Added signatures to transaction", "txKey", txKey, "signatures", len(signatures))
-	return nil
+	return ErrTxNotFound
 }
