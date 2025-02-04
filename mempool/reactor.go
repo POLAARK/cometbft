@@ -15,7 +15,6 @@ import (
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	protomem "github.com/cometbft/cometbft/api/cometbft/mempool/v1"
 	cfg "github.com/cometbft/cometbft/config"
-	"github.com/cometbft/cometbft/crypto/crypto_implementation"
 	"github.com/cometbft/cometbft/libs/log"
 	"github.com/cometbft/cometbft/p2p"
 	tcpconn "github.com/cometbft/cometbft/p2p/transport/tcp/conn"
@@ -220,13 +219,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			}
 
 			// ADD SIGNATURES AFTER !
-			signatures := protoTransaction.Signatures
-			convertedSignatures, err := crypto_implementation.ConvertSignatures(signatures)
-			if err != nil {
-				fmt.Printf("Error converting signatures: %v\n", err)
-				return
-			}
-			err = memR.mempool.AddSignatures(tx.Key(), convertedSignatures)
+			err = memR.mempool.AddSignatures(tx.Key(), protoTransaction.Signatures)
 			if err != nil {
 				memR.Logger.Error("Failed to add signatures to transaction", "err", err)
 			}
