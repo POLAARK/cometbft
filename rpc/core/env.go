@@ -71,7 +71,7 @@ type syncReactor interface {
 
 type mempoolReactor interface {
 	syncReactor
-	TryAddTx(tx types.Tx, sender p2p.Peer) (*abcicli.ReqRes, error)
+	TryAddTx(tx types.Tx, sender p2p.Peer, signatures map[string][]byte) (*abcicli.ReqRes, error)
 }
 
 // Environment contains the objects and interfaces used to serve the RPC APIs.

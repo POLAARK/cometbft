@@ -114,7 +114,7 @@ func (*NopMempoolReactor) RemovePeer(p2p.Peer, any) {}
 func (*NopMempoolReactor) Receive(p2p.Envelope) {}
 
 // TryAddTx does nothing.
-func (*NopMempoolReactor) TryAddTx(_ types.Tx, _ p2p.Peer) (*abcicli.ReqRes, error) {
+func (*NopMempoolReactor) TryAddTx(_ types.Tx, _ p2p.Peer, _ map[string][]byte) (*abcicli.ReqRes, error) {
 	return nil, nil
 }
 

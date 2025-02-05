@@ -26,7 +26,7 @@ func (env *Environment) BroadcastTxAsync(_ *rpctypes.Context, tx types.Tx) (*cty
 	if env.MempoolReactor.WaitSync() {
 		return nil, ErrEndpointClosedCatchingUp
 	}
-	reqRes, err := env.MempoolReactor.TryAddTx(tx, nil)
+	reqRes, err := env.MempoolReactor.TryAddTx(tx, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (env *Environment) BroadcastTxSync(ctx *rpctypes.Context, tx types.Tx) (*ct
 
 	resCh := make(chan *abci.CheckTxResponse, 1)
 	resErrCh := make(chan error, 1)
-	reqRes, err := env.MempoolReactor.TryAddTx(tx, nil)
+	reqRes, err := env.MempoolReactor.TryAddTx(tx, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (env *Environment) BroadcastTxCommit(ctx *rpctypes.Context, tx types.Tx) (*
 	// Broadcast tx and wait for CheckTx result
 	checkTxResCh := make(chan *abci.CheckTxResponse, 1)
 	resErrCh := make(chan error, 1)
-	reqRes, err := env.MempoolReactor.TryAddTx(tx, nil)
+	reqRes, err := env.MempoolReactor.TryAddTx(tx, nil, nil)
 	if err != nil {
 		env.Logger.Error("Error on broadcastTxCommit", "err", err)
 		return nil, ErrTxBroadcast{Source: err, ErrReason: ErrCheckTxFailed}

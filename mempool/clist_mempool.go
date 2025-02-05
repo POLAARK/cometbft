@@ -11,6 +11,7 @@ import (
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/config"
+	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/internal/clist"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
@@ -977,7 +978,7 @@ func (rc *recheck) consideredFull() bool {
 	return rc.recheckFull.Load()
 }
 
-func (mem *CListMempool) AddSignatures(txKey types.TxKey, signatures map[string][]byte) error {
+func (mem *CListMempool) AddAndValidateSignatures(txKey types.TxKey, signatures map[string][]byte) error {
 	mem.txsMtx.Lock()
 	defer mem.txsMtx.Unlock()
 
@@ -990,8 +991,25 @@ func (mem *CListMempool) AddSignatures(txKey types.TxKey, signatures map[string]
 				memTx.signatures[pubKey] = signature
 			}
 		}
+		if err := memTx.ValidateSignatures(); err != nil {
+			return fmt.Errorf("signature validation failed: %w", err)
+		}
 		mem.logger.Debug("Added signatures to transaction", "txKey", txKey, "signatures", len(signatures))
 		return nil
 	}
 	return ErrTxNotFound
+}
+
+func (mem *CListMempool) SignTransaction(txKey types.TxKey, pubKey crypto.PubKey, signature []byte ) error {
+		mem.txsMtx.Lock()
+		defer mem.txsMtx.Unlock()
+
+		if elem, ok := mem.txsMap[txKey]; ok {
+			memTx := elem.Value.(*mempoolTx)
+			memTx.AddSignature(pubKey, signature)
+			mem.logger.Debug("Add peer signature to transaction", "txKey", txKey)
+			return nil
+		}
+
+		return ErrTxNotFound
 }

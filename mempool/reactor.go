@@ -212,16 +212,10 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			}
 			memR.mempool.metrics.SignaturesReceivedSize.Add(float64(totalSize))
 
-			_, err := memR.TryAddTx(tx, e.Src)
+			_, err := memR.TryAddTx(tx, e.Src, protoTransaction.Signatures)
 			if err != nil {
 				memR.Logger.Error("Failed to add transaction", "err", err)
 				continue
-			}
-
-			// ADD SIGNATURES AFTER !
-			err = memR.mempool.AddSignatures(tx.Key(), protoTransaction.Signatures)
-			if err != nil {
-				memR.Logger.Error("Failed to add signatures to transaction", "err", err)
 			}
 		}
 
@@ -236,7 +230,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 
 // TryTx attempts to add an incoming transaction to the mempool.
 // When the sender is nil, it means the transaction comes from an RPC endpoint.
-func (memR *Reactor) TryAddTx(tx types.Tx, sender p2p.Peer) (*abcicli.ReqRes, error) {
+func (memR *Reactor) TryAddTx(tx types.Tx, sender p2p.Peer, signatures map[string][]byte) (*abcicli.ReqRes, error) {
 	senderID := noSender
 	if sender != nil {
 		senderID = sender.ID()
@@ -254,6 +248,26 @@ func (memR *Reactor) TryAddTx(tx types.Tx, sender p2p.Peer) (*abcicli.ReqRes, er
 			memR.Logger.Info("Could not check tx", "tx", log.NewLazySprintf("%X", tx.Hash()), "sender", senderID, "err", err)
 		}
 		return nil, err
+	} else {
+		err = memR.mempool.AddAndValidateSignatures(tx.Key(), signatures)
+		if err != nil {
+			memR.Logger.Error("Failed to add signatures to transaction", "err", err)
+		}
+
+		var txKey = tx.Key()
+		signature, err := (*memR.privVal).SignBytes(tx)
+		if err != nil {
+			memR.Logger.Error("Can't sign this transactions", "txKey", txKey)
+		}
+
+		pubKey, err := (*memR.privVal).GetPubKey()
+		if err != nil {
+			memR.Logger.Error("Can't get this privVal pubKey", "privVal")
+		}
+		err = memR.mempool.SignTransaction(txKey, pubKey, signature)
+		if err != nil {
+			memR.Logger.Error("Can't sign this transaction", "txKey", txKey)
+		}
 	}
 
 	return reqRes, nil
@@ -316,6 +330,13 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			continue
 		}
 
+		if entry.SignatureCount() >= int(atomic.LoadInt32(&memR.txBroadcastThreshold)) {
+			memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
+				"tx", log.NewLazySprintf("%X", entry.Tx().Hash()),
+				"threshold", atomic.LoadInt32(&memR.txBroadcastThreshold))
+			continue
+		}
+
 		// If we suspect that the peer is lagging behind, at least by more than
 		// one block, we don't send the transaction immediately. This code
 		// reduces the mempool size and the recheck-tx rate of the receiving
@@ -342,15 +363,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			}
 		}
 
-		// TODOPB : is this enough ?
-		// TODOPB : will the network sync or should we add a mechanism to push to consensus
-		if entry.SignatureCount() >= int(atomic.LoadInt32(&memR.txBroadcastThreshold)) {
-			memR.Logger.Debug("Transaction reached threshold, stopping broadcast",
-				"tx", log.NewLazySprintf("%X", entry.Tx().Hash()),
-				"threshold", atomic.LoadInt32(&memR.txBroadcastThreshold))
-			continue
-		}
-
 		// NOTE: Transaction batching was disabled due to
 		// https://github.com/tendermint/tendermint/issues/5796
 
@@ -370,10 +382,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			memR.Logger.Debug("Sending transaction to peer",
 			"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 
-			if err := memR.signAndValidate(entry.(*mempoolTx)); err != nil {
-				memR.Logger.Error("Failed to sign and validate transaction", "error", err)
-				continue
-			}
 			// The entry may have been removed from the mempool since it was
 			// chosen at the beginning of the loop. Skip it if that's the case.
 			if !memR.mempool.Contains(entry.Tx().Key()) {
@@ -423,29 +431,4 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			}
 		}
 	}
-}
-
-func (memR *Reactor) signAndValidate(entry Entry) error {
-	tx := entry.Tx()
-
-	// Validate existing signatures
-	if err := entry.ValidateSignatures(); err != nil {
-		return fmt.Errorf("signature validation failed: %w", err)
-	}
-
-	// Sign transaction
-	signature, err := (*memR.privVal).SignBytes(tx) // TODOPB: SHOULD WE ONLY SIGN THE HASH OR THE WHOLE TX
-	if err != nil {
-		return fmt.Errorf("signing failed: %w", err)
-	}
-
-	// Get public key
-	pubKey, err := (*memR.privVal).GetPubKey()
-	if err != nil {
-		return fmt.Errorf("public key retrieval failed: %w", err)
-	}
-
-	// Add the new signature
-	entry.AddSignature(pubKey, signature)
-	return nil
 }

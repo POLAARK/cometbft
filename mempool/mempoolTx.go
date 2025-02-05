@@ -97,20 +97,24 @@ func (memTx *mempoolTx) SetSignatures(signatures map[string][]byte) {
 	memTx.signatures = signatures
 }
 
-// AddSignature safely adds a signature to the map and increments the signature count.
+// AddSignature safely adds a signature to the map and increments the signature count only if the key is new.
 func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) {
-	pubKeyStr := string(pubKey.Bytes())
+    pubKeyStr := string(pubKey.Bytes())
 
-	memTx.signatureMutex.Lock()
-	defer memTx.signatureMutex.Unlock()
+    memTx.signatureMutex.Lock()
+    defer memTx.signatureMutex.Unlock()
 
-	if memTx.signatures == nil {
-		memTx.signatures = make(map[string][]byte)
-	}
+    if memTx.signatures == nil {
+        memTx.signatures = make(map[string][]byte)
+    }
 
-	memTx.signatures[pubKeyStr] = signature
-	atomic.AddInt32(&memTx.signatureCount, 1)
+    // Only increment the count if the pubKey is not already present.
+    if _, exists := memTx.signatures[pubKeyStr]; !exists {
+        atomic.AddInt32(&memTx.signatureCount, 1)
+    }
+    memTx.signatures[pubKeyStr] = signature
 }
+
 
 // SignatureCount returns the number of valid signatures.
 func (memTx *mempoolTx) SignatureCount() int {

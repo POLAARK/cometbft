@@ -102,7 +102,7 @@ type waitSyncP2PReactor interface {
 
 type mempoolReactor interface {
 	waitSyncP2PReactor
-	TryAddTx(tx types.Tx, sender p2p.Peer) (*abcicli.ReqRes, error)
+	TryAddTx(tx types.Tx, sender p2p.Peer, signatures map[string][]byte) (*abcicli.ReqRes, error)
 }
 
 // Option sets a parameter for the node.
