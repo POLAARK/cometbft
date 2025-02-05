@@ -178,7 +178,7 @@ type Entry interface {
 	SetSignatures(signatures map[string][]byte)
 
 	// Add a signature to the list of signatures.
-	AddSignature(pubKey crypto.PubKey, signature []byte) error
+	AddSignature(pubKey crypto.PubKey, signature []byte)
 
 	// Count the number of signature to check if we reach the number required to stop broadcasting
 	SignatureCount() int

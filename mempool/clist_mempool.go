@@ -978,26 +978,44 @@ func (rc *recheck) consideredFull() bool {
 	return rc.recheckFull.Load()
 }
 
-func (mem *CListMempool) AddAndValidateSignatures(txKey types.TxKey, signatures map[string][]byte) error {
+func (mem *CListMempool) AddAndValidateSignatures(
+	txKey types.TxKey,
+	signatures map[string][]byte,
+	validators *types.ValidatorSet,
+	thresholdVotingPower int32,
+) error {
 	mem.txsMtx.Lock()
 	defer mem.txsMtx.Unlock()
 
-	if elem, ok := mem.txsMap[txKey]; ok {
-		memTx := elem.Value.(*mempoolTx)
-		if memTx.signatures == nil {
-			memTx.signatures = signatures
-		} else {
-			for pubKey, signature := range signatures {
-				memTx.signatures[pubKey] = signature
-			}
-		}
-		if err := memTx.ValidateSignatures(); err != nil {
-			return fmt.Errorf("signature validation failed: %w", err)
-		}
-		mem.logger.Debug("Added signatures to transaction", "txKey", txKey, "signatures", len(signatures))
-		return nil
+	elem, ok := mem.txsMap[txKey]
+	if !ok {
+		return ErrTxNotFound
 	}
-	return ErrTxNotFound
+
+	memTx := elem.Value.(*mempoolTx)
+	if memTx.signatures == nil {
+		memTx.signatures = signatures
+	} else {
+		for pubKey, signature := range signatures {
+			memTx.signatures[pubKey] = signature
+		}
+	}
+
+	// Validate all signatures and accumulate the voting power.
+	txVotingPower, err := memTx.ValidateSignaturesAndGetVotingPower(validators)
+	if err != nil {
+		return fmt.Errorf("signature validation failed: %w", err)
+	}
+
+	// If the threshold is reached, remove the tx from the mempool to stop broadcast.
+	if txVotingPower >= int64(thresholdVotingPower) {
+		if err := mem.RemoveTxByKey(txKey); err != nil {
+			return fmt.Errorf("failed to remove transaction after reaching threshold: %w", err)
+		}
+		mem.logger.Debug("Transaction removed after reaching signature threshold", "txKey", txKey)
+	}
+
+	return nil
 }
 
 func (mem *CListMempool) SignTransaction(txKey types.TxKey, pubKey crypto.PubKey, signature []byte ) error {
