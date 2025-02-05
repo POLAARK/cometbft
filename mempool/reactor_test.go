@@ -532,10 +532,8 @@ func makeReactors(config *cfg.Config, n int, logger *log.Logger, lanesEnabled bo
 	reactors := make([]*Reactor, n)
 
 	// Mock PrivValidator.
-	privValidators := make([]types.PrivValidator, n)
-	for i := 0; i < n; i++ {
-		privValidators[i] = types.NewMockPV()
-	}
+	valSet, privValidators := types.RandValidatorSet(5, 10)
+
 
 	for i := 0; i < n; i++ {
 		var app *kvstore.Application
@@ -550,7 +548,8 @@ func makeReactors(config *cfg.Config, n int, logger *log.Logger, lanesEnabled bo
 
 		// Add privValidators.
 		// Threshold to 66%
-		reactors[i]= NewReactor(config.Mempool, &privValidators[i], mempool, false, 66) // so we dont start the consensus states
+
+		reactors[i] = NewReactor(config.Mempool, &privValidators[i], mempool, false, valSet, 66)
 		reactors[i].SetLogger((*logger).With("validator", i))
 	}
 	return reactors

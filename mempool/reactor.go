@@ -4,13 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/semaphore"
-
-	"os"
 
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	protomem "github.com/cometbft/cometbft/api/cometbft/mempool/v1"
@@ -42,24 +39,13 @@ type Reactor struct {
 
 	txBroadcastThreshold int32
 	thresholdPercent int32
+	validators                  *types.ValidatorSet
 }
 
 
 // NewReactor returns a new Reactor with the given config and mempool.
 //TODO : check where the reactor is created, we will need the privValidator to sign transactions there.
-func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool *CListMempool, waitSync bool, thresholdPercent int32) *Reactor {
-
-	thresholdEnv, exists := os.LookupEnv("MEMPOOL_THRESHOLD_PERCENT") // Read environment variable
-	if !exists {
-		panic("❌ Fatal Error: MEMPOOL_THRESHOLD_PERCENT environment variable is not set!")
-	}
-
-	val, err := strconv.Atoi(thresholdEnv)
-	if err != nil {
-		panic(fmt.Sprintf("❌ Fatal Error: Invalid MEMPOOL_THRESHOLD_PERCENT value: %s (must be an integer)", thresholdEnv))
-	}
-
-	thresholdPercent = int32(val)
+func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool *CListMempool, waitSync bool, validators *types.ValidatorSet,  thresholdPercent int32) *Reactor {
 
 	memR := &Reactor{
 		config:   config,
@@ -68,7 +54,9 @@ func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool
 		waitSync: atomic.Bool{},
 		txBroadcastThreshold: thresholdPercent,
 		thresholdPercent: thresholdPercent,
+		validators:  validators,
 	}
+
 	memR.BaseReactor = *p2p.NewBaseReactor("Mempool", memR)
 	if waitSync {
 		memR.waitSync.Store(true)
@@ -82,7 +70,7 @@ func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool
 
 func (memR *Reactor) calculateTxBroadcastThreshold() {
     peerCount := memR.Switch.Peers().Size() // Dynamically get the number of peers
-    newThreshold := (memR.thresholdPercent * int32(peerCount)) / 100
+    newThreshold := (memR.thresholdPercent * int32(memR.validators.TotalVotingPower())) / 100
 
     atomic.StoreInt32(&memR.txBroadcastThreshold, newThreshold) // Atomic store
 
@@ -115,7 +103,6 @@ func (memR *Reactor) StreamDescriptors() []p2p.StreamDescriptor {
 	// Create a largestTx byte slice to simulate the maximum transaction size.
 	largestTx := make([]byte, memR.config.MaxTxBytes)
 
-	// TODOPB should be use an initiated tx map ?
 	// Construct a Transaction with the largestTx and an empty signatures map.
 	largestTransaction := &protomem.Transaction{
 		TransactionBytes:         largestTx,
@@ -249,7 +236,7 @@ func (memR *Reactor) TryAddTx(tx types.Tx, sender p2p.Peer, signatures map[strin
 		}
 		return nil, err
 	} else {
-		err = memR.mempool.AddAndValidateSignatures(tx.Key(), signatures)
+		err = memR.mempool.AddAndValidateSignatures(tx.Key(), signatures, memR.validators, memR.txBroadcastThreshold)
 		if err != nil {
 			memR.Logger.Error("Failed to add signatures to transaction", "err", err)
 		}
@@ -305,7 +292,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			return
 		}
 	}
-
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {

@@ -51,31 +51,74 @@ func (memTx *mempoolTx) IsSender(peerID nodekey.ID) bool {
 	return ok
 }
 
-// ValidateSignatures checks if each signature matches its corresponding public key.
-// If any signature is invalid, it returns an error.
-func (memTx *mempoolTx) ValidateSignatures() error {
+// Validates All Signatures check if each signature is matching with the pubKey
+// If a invalidSignatures return an error;
+func (memTx *mempoolTx) ValidateSignaturesAndGetVotingPower(validators *types.ValidatorSet) (int64, error) {
+	var accumulatedVotingPower int64
 	var invalidSignatures []string
 
 	memTx.signatureMutex.Lock()
 	defer memTx.signatureMutex.Unlock()
 
+	// Iterate over each signature using the map iteration logic.
 	for pubKeyStr, signature := range memTx.signatures {
+		// Convert the stored string back to a PubKey.
 		pubKey, err := crypto_implementation.PubKeyFromBytes([]byte(pubKeyStr))
 		if err != nil {
-			return fmt.Errorf("invalid publicKey from bytes: %s", pubKeyStr)
+			invalidSignatures = append(invalidSignatures, pubKeyStr)
+			continue
 		}
 
-		if !pubKey.VerifySignature(memTx.tx, signature) {
+		// Look up the validator by the public key's address.
+		_, validator := validators.GetByAddress(pubKey.Address())
+		if validator == nil {
+			fmt.Printf("Invalid signature from unknown validator: %v\n", pubKey.Address())
 			invalidSignatures = append(invalidSignatures, pubKeyStr)
+			continue
 		}
+
+		// Verify the signature against the transaction.
+		if !pubKey.VerifySignature(memTx.tx, signature) {
+			fmt.Printf("Invalid signature from validator: %v\n", validator.Address.String())
+			invalidSignatures = append(invalidSignatures, pubKeyStr)
+			continue
+		}
+
+		// Accumulate the voting power of the valid validator.
+		accumulatedVotingPower += validator.VotingPower
 	}
 
 	if len(invalidSignatures) > 0 {
-		return fmt.Errorf("invalid signatures found for public keys: %v", invalidSignatures)
+		return accumulatedVotingPower, fmt.Errorf("invalid signatures found for public keys: %v", invalidSignatures)
 	}
 
-	return nil
+	return accumulatedVotingPower, nil
 }
+
+
+// func (memTx *mempoolTx) ValidateSignatures() error {
+// 	var invalidSignatures []string
+
+// 	memTx.signatureMutex.Lock()
+// 	defer memTx.signatureMutex.Unlock()
+
+// 	for pubKeyStr, signature := range memTx.signatures {
+// 		pubKey, err := crypto_implementation.PubKeyFromBytes([]byte(pubKeyStr))
+// 		if err != nil {
+// 			return fmt.Errorf("invalid publicKey from bytes: %s", pubKeyStr)
+// 		}
+
+// 		if !pubKey.VerifySignature(memTx.tx, signature) {
+// 			invalidSignatures = append(invalidSignatures, pubKeyStr)
+// 		}
+// 	}
+
+// 	if len(invalidSignatures) > 0 {
+// 		return fmt.Errorf("invalid signatures found for public keys: %v", invalidSignatures)
+// 	}
+
+// 	return nil
+// }
 
 // GetSignatures returns the signatures map, initializing it if necessary.
 func (memTx *mempoolTx) GetSignatures() map[string][]byte {
