@@ -23,7 +23,7 @@ var errNotAllowed = errors.New("not allowed with `nop` mempool")
 var _ Mempool = &NopMempool{}
 
 // CheckTx always returns an error.
-func (*NopMempool) CheckTx(types.Tx, nodekey.ID) (*abcicli.ReqRes, error) {
+func (*NopMempool) CheckTx(types.Tx, nodekey.ID, map[string][]byte) (*abcicli.ReqRes, error) {
 	return nil, errNotAllowed
 }
 
@@ -114,7 +114,7 @@ func (*NopMempoolReactor) RemovePeer(p2p.Peer, any) {}
 func (*NopMempoolReactor) Receive(p2p.Envelope) {}
 
 // TryAddTx does nothing.
-func (*NopMempoolReactor) TryAddTx(_ types.Tx, _ p2p.Peer) (*abcicli.ReqRes, error) {
+func (*NopMempoolReactor) TryAddTx(_ types.Tx, _ p2p.Peer, _ map[string][]byte) (*abcicli.ReqRes, error) {
 	return nil, nil
 }
 

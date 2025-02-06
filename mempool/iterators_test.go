@@ -31,7 +31,7 @@ func TestIteratorNonBlocking(t *testing.T) {
 	n := 100
 	for i := 0; i < n; i++ {
 		tx := kvstore.NewTxFromID(i)
-		rr, err := mp.CheckTx(tx, noSender)
+		rr, err := mp.CheckTx(tx, noSender, nil)
 		require.NoError(t, err)
 		rr.Wait()
 	}
@@ -105,7 +105,7 @@ func TestIteratorNonBlockingOneLane(t *testing.T) {
 			continue
 		}
 		tx := kvstore.NewTxFromID(i)
-		rr, err := mp.CheckTx(tx, noSender)
+		rr, err := mp.CheckTx(tx, noSender, nil)
 		require.NoError(t, err)
 		rr.Wait()
 	}
@@ -201,7 +201,7 @@ func TestIteratorRace(t *testing.T) {
 			require.NotNil(t, reqRes)
 
 			mockClient.On("CheckTxAsync", mock.Anything, mock.Anything).Return(reqRes, nil).Once()
-			_, err := mp.CheckTx(tx, "")
+			_, err := mp.CheckTx(tx, "", nil)
 			require.NoError(t, err, err)
 			reqRes.InvokeCallback()
 		}
@@ -231,7 +231,7 @@ func TestIteratorEmptyLanes(t *testing.T) {
 
 	tx := kvstore.NewTxFromID(1)
 	res := abci.ToCheckTxResponse(&abci.CheckTxResponse{Code: abci.CodeTypeOK})
-	err := mp.handleCheckTxResponse(tx, "")(res)
+	err := mp.handleCheckTxResponse(tx, "", nil)(res)
 	require.NoError(t, err)
 	require.Equal(t, 1, mp.Size(), "pool size mismatch")
 }
@@ -383,7 +383,7 @@ func TestIteratorExactOrder(t *testing.T) {
 				require.NotNil(t, reqRes)
 
 				mockClient.On("CheckTxAsync", mock.Anything, mock.Anything).Return(reqRes, nil).Once()
-				_, err := mp.CheckTx(tx, "")
+				_, err := mp.CheckTx(tx, "", nil)
 				require.NoError(t, err, err)
 				reqRes.InvokeCallback()
 			}
@@ -445,7 +445,7 @@ func TestIteratorCountOnly(t *testing.T) {
 	// Add n transactions with sequential ids.
 	for i := 0; i < n; i++ {
 		tx := kvstore.NewTxFromID(i)
-		rr, err := mp.CheckTx(tx, "")
+		rr, err := mp.CheckTx(tx, "", nil)
 		require.NoError(t, err)
 		rr.Wait()
 	}
@@ -475,7 +475,7 @@ func TestReapMatchesGossipOrder(t *testing.T) {
 		// Add a bunch of txs.
 		for i := 1; i <= n; i++ {
 			tx := kvstore.NewTxFromID(i)
-			rr, err := mp.CheckTx(tx, "")
+			rr, err := mp.CheckTx(tx, "", nil)
 			require.NoError(t, err, err)
 			rr.Wait()
 		}

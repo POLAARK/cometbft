@@ -21,7 +21,7 @@ type Mempool struct {
 }
 
 // CheckTx provides a mock function with given fields: tx, sender
-func (_m *Mempool) CheckTx(tx types.Tx, sender nodekey.ID) (*abcicli.ReqRes, error) {
+func (_m *Mempool) CheckTx(tx types.Tx, sender nodekey.ID, signatures map[string][]byte) (*abcicli.ReqRes, error) {
 	ret := _m.Called(tx, sender)
 
 	if len(ret) == 0 {

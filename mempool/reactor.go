@@ -214,9 +214,9 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			}
 			memR.mempool.metrics.SignaturesReceivedSize.Add(float64(totalSize))
 
-			_, err1 := memR.TryAddTx(tx, e.Src)
+			_, err1 := memR.TryAddTx(tx, e.Src, protoTransaction.Signatures)
 
-			memR.Logger.Info("Signature received,", "signatureSize", len(protoTransaction.Signatures))
+			memR.Logger.Info("Signature received,", "signatures", protoTransaction.Signatures)
 
 			signature, err := (*memR.privVal).SignBytes(tx.Hash())
 			if err != nil {
@@ -256,13 +256,13 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 
 // TryTx attempts to add an incoming transaction to the mempool.
 // When the sender is nil, it means the transaction comes from an RPC endpoint.
-func (memR *Reactor) TryAddTx(tx types.Tx, sender p2p.Peer) (*abcicli.ReqRes, error) {
+func (memR *Reactor) TryAddTx(tx types.Tx, sender p2p.Peer, signatures map[string][]byte) (*abcicli.ReqRes, error) {
 	senderID := noSender
 	if sender != nil {
 		senderID = sender.ID()
 	}
 
-	reqRes, err := memR.mempool.CheckTx(tx, senderID)
+	reqRes, err := memR.mempool.CheckTx(tx, senderID, signatures)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrTxInCache):
@@ -392,10 +392,12 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 			continue
 		}
+
 		if entry.GetThresholdReached() {
 			memR.Logger.Info("Do not send, threshold reached")
 			continue
 		}
+
 		for {
 			memR.Logger.Debug("Sending transaction to peer",
 			"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())

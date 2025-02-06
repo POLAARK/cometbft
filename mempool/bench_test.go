@@ -42,7 +42,7 @@ func BenchmarkCheckTx(b *testing.B) {
 		tx := kvstore.NewTxFromID(i)
 		b.StartTimer()
 
-		rr, err := mp.CheckTx(tx, "")
+		rr, err := mp.CheckTx(tx, "", nil)
 		require.NoError(b, err, i)
 		rr.Wait()
 	}
@@ -64,7 +64,7 @@ func BenchmarkParallelCheckTx(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			tx := kvstore.NewTxFromID(int(next()))
-			rr, err := mp.CheckTx(tx, "")
+			rr, err := mp.CheckTx(tx, "", nil)
 			require.NoError(b, err, tx)
 			rr.Wait()
 		}
@@ -80,7 +80,7 @@ func BenchmarkCheckDuplicateTx(b *testing.B) {
 	mp.config.Size = 2
 
 	tx := kvstore.NewTxFromID(1)
-	if _, err := mp.CheckTx(tx, ""); err != nil {
+	if _, err := mp.CheckTx(tx, "", nil); err != nil {
 		b.Fatal(err)
 	}
 	err := mp.FlushAppConn()
@@ -88,7 +88,7 @@ func BenchmarkCheckDuplicateTx(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := mp.CheckTx(tx, "")
+		_, err := mp.CheckTx(tx, "", nil)
 		require.ErrorAs(b, err, &ErrTxInCache, "tx should be duplicate")
 	}
 }
@@ -142,7 +142,7 @@ func BenchmarkUpdateRemoteClient(b *testing.B) {
 	for i := 1; i <= b.N; i++ {
 		b.StopTimer()
 		tx := kvstore.NewTxFromID(i)
-		_, err := mp.CheckTx(tx, "")
+		_, err := mp.CheckTx(tx, "", nil)
 		require.NoError(b, err)
 		err = mp.FlushAppConn()
 		require.NoError(b, err)

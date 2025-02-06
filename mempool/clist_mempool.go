@@ -331,7 +331,7 @@ func (mem *CListMempool) Contains(txKey types.TxKey) bool {
 
 // It blocks if we're waiting on Update() or Reap().
 // Safe for concurrent use by multiple goroutines.
-func (mem *CListMempool) CheckTx(tx types.Tx, sender nodekey.ID) (*abcicli.ReqRes, error) {
+func (mem *CListMempool) CheckTx(tx types.Tx, sender nodekey.ID, signatures map[string][]byte) (*abcicli.ReqRes, error) {
 	mem.updateMtx.RLock()
 	// use defer to unlock mutex because application (*local client*) might panic
 	defer mem.updateMtx.RUnlock()
@@ -383,7 +383,7 @@ func (mem *CListMempool) CheckTx(tx types.Tx, sender nodekey.ID) (*abcicli.ReqRe
 	if err != nil {
 		panic(fmt.Errorf("CheckTx request for tx %s failed: %w", tx.Hash(), err))
 	}
-	reqRes.SetCallback(mem.handleCheckTxResponse(tx, sender))
+	reqRes.SetCallback(mem.handleCheckTxResponse(tx, sender, signatures))
 
 	return reqRes, nil
 }
@@ -391,7 +391,7 @@ func (mem *CListMempool) CheckTx(tx types.Tx, sender nodekey.ID) (*abcicli.ReqRe
 // handleCheckTxResponse handles CheckTx responses for transactions validated for the first time.
 //
 //   - sender optionally holds the ID of the peer that sent the transaction, if any.
-func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID) func(res *abci.Response) error {
+func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID, signatures map[string][]byte) func(res *abci.Response) error {
 	return func(r *abci.Response) error {
 		res := r.GetCheckTx()
 		if res == nil {
@@ -455,7 +455,7 @@ func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID) f
 		}
 
 		// Add tx to mempool and notify that new txs are available.
-		mem.addTx(tx, res.GasWanted, sender, lane)
+		mem.addTx(tx, res.GasWanted, sender, lane, signatures)
 		mem.notifyTxsAvailable()
 
 		if mem.onNewTx != nil {
@@ -470,7 +470,7 @@ func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID) f
 
 // Called from:
 //   - handleCheckTxResponse (lock not held) if tx is valid
-func (mem *CListMempool) addTx(tx types.Tx, gasWanted int64, sender nodekey.ID, lane LaneID) {
+func (mem *CListMempool) addTx(tx types.Tx, gasWanted int64, sender nodekey.ID, lane LaneID, signatures map[string][]byte) {
 	mem.txsMtx.Lock()
 	defer mem.txsMtx.Unlock()
 
@@ -1012,7 +1012,6 @@ func (mem *CListMempool) AddAndValidateSignatures(
 	if !ok {
 		return ErrTxNotFound
 	}
-
 	memTx := elem.Value.(*mempoolTx)
 	memTx.SetSignatures(signatures)
 
