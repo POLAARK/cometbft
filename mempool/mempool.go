@@ -168,7 +168,7 @@ type Entry interface {
 	// IsSender returns whether we received the transaction from the given peer ID.
 	IsSender(peerID nodekey.ID) bool
 
-	ValidateSignatures() error
+	ValidateSignatures(validators *types.ValidatorSet) (int64, error)
 
 	// GetSignatures retrieves the current map of public keys to their signatures.
 	GetSignatures() map[string][]byte

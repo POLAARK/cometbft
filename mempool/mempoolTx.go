@@ -1,13 +1,15 @@
 package mempool
 
 import (
+	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cometbft/cometbft/crypto"
-	"github.com/cometbft/cometbft/crypto/crypto_implementation"
+	"github.com/cometbft/cometbft/libs/bytes"
 	"github.com/cometbft/cometbft/p2p/nodekey"
 	"github.com/cometbft/cometbft/types"
 )
@@ -51,30 +53,57 @@ func (memTx *mempoolTx) IsSender(peerID nodekey.ID) bool {
 	return ok
 }
 
-// ValidateSignatures checks if each signature matches its corresponding public key.
-// If any signature is invalid, it returns an error.
-func (memTx *mempoolTx) ValidateSignatures() error {
-	var invalidSignatures []string
 
-	memTx.signatureMutex.Lock()
-	defer memTx.signatureMutex.Unlock()
+func (memTx *mempoolTx) ValidateSignatures(validators *types.ValidatorSet) (int64, error) {
+    var accumulatedVotingPower int64
+    var invalidSignatures []string
 
-	for pubKeyStr, signature := range memTx.signatures {
-		pubKey, err := crypto_implementation.PubKeyFromBytes([]byte(pubKeyStr))
+    memTx.signatureMutex.Lock()
+    defer memTx.signatureMutex.Unlock()
+
+    // Log the transaction hash (and optionally some other tx details)
+    // info-level logging may be passed down as a logger parameter if needed.
+    // For example: logger.Info("Validating signatures", "txHash", fmt.Sprintf("%X", txHash))
+
+    for pubKeyStr, signature := range memTx.signatures {
+        // Convert the stored string back to a PubKey.
+		pubKeyBytes, err := hex.DecodeString(strings.ToLower(pubKeyStr))
 		if err != nil {
-			return fmt.Errorf("invalid publicKey from bytes: %s", pubKeyStr)
+			//
 		}
+		pubKeyAdrr := bytes.HexBytes(pubKeyBytes)
+        if err != nil {
+            invalidSignatures = append(invalidSignatures, pubKeyStr)
+            continue
+        }
 
-		if !pubKey.VerifySignature(memTx.tx, signature) {
-			invalidSignatures = append(invalidSignatures, pubKeyStr)
-		}
-	}
+        // Look up the validator by the public key's address.
+        _, validator := validators.GetByAddress(pubKeyAdrr)
+		pubKey := validator.PubKey
 
-	if len(invalidSignatures) > 0 {
-		return fmt.Errorf("invalid signatures found for public keys: %v", invalidSignatures)
-	}
+        if validator == nil {
+            // Using info-level log; ensure the output is consistent.
+            print("MEMPOOLTX INFO: Invalid signature from unknown validator")
+            invalidSignatures = append(invalidSignatures, pubKeyStr)
+            continue
+        }
+        // Log that we’re about to verify.
+        // print("MEMPOOLTX INFO: Verifying signature for validator " + pubKeyStr);
 
-	return nil
+        // Verify the signature against the transaction.
+        if !pubKey.VerifySignature(memTx.Tx().Hash(), signature) {
+            invalidSignatures = append(invalidSignatures, pubKeyStr)
+            continue
+        }
+
+        accumulatedVotingPower += validator.VotingPower
+    }
+
+    if len(invalidSignatures) > 0 {
+        return accumulatedVotingPower, fmt.Errorf("invalid signatures found for public keys: %v", invalidSignatures)
+    }
+
+    return accumulatedVotingPower, nil
 }
 
 // GetSignatures returns the signatures map, initializing it if necessary.
@@ -99,7 +128,6 @@ func (memTx *mempoolTx) SetSignatures(signatures map[string][]byte) {
 
 // AddSignature safely adds a signature to the map and increments the signature count.
 func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) {
-	pubKeyStr := string(pubKey.Bytes())
 
 	memTx.signatureMutex.Lock()
 	defer memTx.signatureMutex.Unlock()
@@ -108,7 +136,7 @@ func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) {
 		memTx.signatures = make(map[string][]byte)
 	}
 
-	memTx.signatures[pubKeyStr] = signature
+	memTx.signatures[pubKey.Address().String()] = signature
 	atomic.AddInt32(&memTx.signatureCount, 1)
 }
 

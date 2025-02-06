@@ -164,10 +164,10 @@ def save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, a
 
 
 if __name__ == "__main__":
-    for payload in [100, 250, 500]:  # Varying payload sizes
-        for validators in [4, 8, 12, 16, 20]:  # Different validator configurations
-            for threshold in [10, 25, 40, 50, 75, 90]:  # Different mempool thresholds
-                for load_time in [40]:  # Different load durations
+    for payload in [120]:  # Varying payload sizes , 250, 500
+        for validators in [4]:  # Different validator configurations 4, 8, 12, 16, 20
+            for threshold in [80]:  # Different mempool thresholds
+                for load_time in [10]:  # Different load durations 40
                     print(f"Running test: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
 
                     # Check if results already exist
@@ -192,10 +192,10 @@ if __name__ == "__main__":
                     print(f"Saving data for Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
                     save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, all_metrics)
 
-                    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
-                    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "stop"], cwd="test/e2e", check=True)
-                    try:
-                        subprocess.run(["./build/runner", "-f", "networks/simple.toml", "cleanup"], cwd="test/e2e", check=True)
-                        time.sleep(2)
-                    except:
-                        print("Everything is already cleaned")
+                    # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
+                    # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "stop"], cwd="test/e2e", check=True)
+                    # try:
+                    #     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "cleanup"], cwd="test/e2e", check=True)
+                    #     time.sleep(2)
+                    # except:
+                    #     print("Everything is already cleaned")
