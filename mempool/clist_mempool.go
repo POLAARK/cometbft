@@ -3,16 +3,18 @@ package mempool
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/config"
-	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/internal/clist"
+	hexbytes "github.com/cometbft/cometbft/libs/bytes"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 	cmtsync "github.com/cometbft/cometbft/libs/sync"
@@ -76,6 +78,10 @@ type CListMempool struct {
 
 	logger  log.Logger
 	metrics *Metrics
+
+	validators *types.ValidatorSet
+	privVal *types.PrivValidator
+	txBroadcastThreshold int32
 }
 
 var _ Mempool = &CListMempool{}
@@ -156,6 +162,15 @@ func NewCListMempool(
 	}
 
 	return mp
+}
+func (mem *CListMempool) setParams(validators *types.ValidatorSet, privVal *types.PrivValidator, txBroadcastThreshold int32) {
+	mem.validators = validators
+	mem.privVal = privVal
+	atomic.StoreInt32(&mem.txBroadcastThreshold, txBroadcastThreshold)
+}
+
+func (mem *CListMempool) setThreshold(txBroadcastThreshold int32) {
+	atomic.StoreInt32(&mem.txBroadcastThreshold, txBroadcastThreshold)
 }
 
 func (mem *CListMempool) addToCache(tx types.Tx) bool {
@@ -361,19 +376,48 @@ func (mem *CListMempool) CheckTx(tx types.Tx, sender nodekey.ID, signatures map[
 		return nil, ErrAppConnMempool{Err: err}
 	}
 
+	txKey := tx.Key()
+
 	if added := mem.addToCache(tx); !added {
 		mem.metrics.AlreadyReceivedTxs.Add(1)
+
+		// Check if the transaction is still in the mempool.
+		if elem, exists := mem.txsMap[txKey]; exists {
+			memTx := elem.Value.(*mempoolTx)
+
+			if err := mem.AddAndValidateSignatures(txKey, signatures); err != nil {
+				mem.logger.Error("Signature validation failed", "txKey", txKey, "err", err)
+				return nil, err
+			}
+			mem.logger.Info("Updated signatures for existing transaction",
+				"txHash", tx.Hash(), "totalSignatures", len(memTx.signatures))
+
+		} else {
+			mem.logger.Warn("Tx in cache but missing from mempool",
+				"tx", log.NewLazyHash(tx))
+		}
+
 		// Record a new sender for a tx we've already seen.
 		// Note it's possible a tx is still in the cache but no longer in the mempool
 		// (eg. after committing a block, txs are removed from mempool but not cache),
 		// so we only record the sender for txs still in the mempool.
-		if err := mem.addSender(tx.Key(), sender); err != nil {
+		if err := mem.addSender(txKey, sender); err != nil {
 			mem.logger.Error("Could not add sender to tx", "tx", log.NewLazyHash(tx), "sender", sender, "err", err)
 		}
 		// TODO: consider punishing peer for dups,
 		// its non-trivial since invalid txs can become valid,
 		// but they can spam the same tx with little cost to them atm.
 		return nil, ErrTxInCache
+	}
+	signatures, err := mem.signIfNeeded(tx.Hash(), signatures)
+	if  err != nil {
+		mem.logger.Error("Failed to sign transaction", "txKey", txKey, "err", err)
+	}
+	mem.logger.Info("SIGNED TRANSACTION", "signature", signatures)
+	txVotingPower, err := mem.validateSignatures(tx.Hash(), signatures);
+	if err != nil {
+		mem.logger.Error("Signature validation failed", "txKey", txKey, "err", err)
+		return nil, err
 	}
 
 	reqRes, err := mem.proxyAppConn.CheckTxAsync(context.TODO(), &abci.CheckTxRequest{
@@ -383,7 +427,7 @@ func (mem *CListMempool) CheckTx(tx types.Tx, sender nodekey.ID, signatures map[
 	if err != nil {
 		panic(fmt.Errorf("CheckTx request for tx %s failed: %w", tx.Hash(), err))
 	}
-	reqRes.SetCallback(mem.handleCheckTxResponse(tx, sender, signatures))
+	reqRes.SetCallback(mem.handleCheckTxResponse(tx, sender, signatures, txVotingPower))
 
 	return reqRes, nil
 }
@@ -391,7 +435,7 @@ func (mem *CListMempool) CheckTx(tx types.Tx, sender nodekey.ID, signatures map[
 // handleCheckTxResponse handles CheckTx responses for transactions validated for the first time.
 //
 //   - sender optionally holds the ID of the peer that sent the transaction, if any.
-func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID, signatures map[string][]byte) func(res *abci.Response) error {
+func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID, signatures map[string][]byte, txVotingPower int64) func(res *abci.Response) error {
 	return func(r *abci.Response) error {
 		res := r.GetCheckTx()
 		if res == nil {
@@ -455,7 +499,7 @@ func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID, s
 		}
 
 		// Add tx to mempool and notify that new txs are available.
-		mem.addTx(tx, res.GasWanted, sender, lane, signatures)
+		mem.addTx(tx, res.GasWanted, sender, lane, signatures, txVotingPower)
 		mem.notifyTxsAvailable()
 
 		if mem.onNewTx != nil {
@@ -470,7 +514,7 @@ func (mem *CListMempool) handleCheckTxResponse(tx types.Tx, sender nodekey.ID, s
 
 // Called from:
 //   - handleCheckTxResponse (lock not held) if tx is valid
-func (mem *CListMempool) addTx(tx types.Tx, gasWanted int64, sender nodekey.ID, lane LaneID, signatures map[string][]byte) {
+func (mem *CListMempool) addTx(tx types.Tx, gasWanted int64, sender nodekey.ID, lane LaneID, signatures map[string][]byte, txVotingPower int64) {
 	mem.txsMtx.Lock()
 	defer mem.txsMtx.Unlock()
 
@@ -494,6 +538,11 @@ func (mem *CListMempool) addTx(tx types.Tx, gasWanted int64, sender nodekey.ID, 
 		lane:      lane,
 		seq:       mem.addTxSeq,
 		isTresholdReached: false,
+		signatures : signatures,
+	}
+	if (txVotingPower > int64(mem.txBroadcastThreshold)){
+		memTx.SetThresholdReached(true)
+		mem.logger.Info("Threshold Reached")
 	}
 	_ = memTx.addSender(sender)
 	e := txs.PushBack(memTx)
@@ -979,31 +1028,9 @@ func (rc *recheck) consideredFull() bool {
 	return rc.recheckFull.Load()
 }
 
-
-
-func (mem *CListMempool) AddSignatures(txKey types.TxKey, signatures map[string][]byte) error {
-	mem.txsMtx.Lock()
-	defer mem.txsMtx.Unlock()
-
-	elem, ok := mem.txsMap[txKey]
-	if !ok {
-		return ErrTxNotFound // Transaction must already exist
-	}
-
-	memTx := elem.Value.(*mempoolTx)
-	memTx.SetSignatures(signatures)
-
-	mem.logger.Info("Added signatures to transaction",
-		"txKey", txKey, "signaturesAdded", len(signatures), "totalSignatures", len(memTx.signatures))
-
-	return nil
-}
-
 func (mem *CListMempool) AddAndValidateSignatures(
 	txKey types.TxKey,
 	signatures map[string][]byte,
-	validators *types.ValidatorSet,
-	thresholdVotingPower int32,
 ) error {
 	mem.txsMtx.Lock()
 	defer mem.txsMtx.Unlock()
@@ -1013,15 +1040,18 @@ func (mem *CListMempool) AddAndValidateSignatures(
 		return ErrTxNotFound
 	}
 	memTx := elem.Value.(*mempoolTx)
+	if signatures == nil {
+		return nil;
+	}
 	memTx.SetSignatures(signatures)
 
 	// Validate all signatures and accumulate the voting power.
-	txVotingPower, err := memTx.ValidateSignatures(validators)
+	txVotingPower, err := memTx.ValidateSignatures(mem.validators)
 	if err != nil {
 		return fmt.Errorf("signature validation failed: %w", err)
 	}
 
-	if txVotingPower >= int64(thresholdVotingPower) {
+	if txVotingPower >= int64(mem.txBroadcastThreshold) {
 		memTx.SetThresholdReached(true)
 		mem.logger.Info("Threshold reached", "txKey", txKey)
 	}
@@ -1029,16 +1059,84 @@ func (mem *CListMempool) AddAndValidateSignatures(
 	return nil
 }
 
-func (mem *CListMempool) SignTransaction(txKey types.TxKey, pubKey crypto.PubKey, signature []byte ) error {
-		mem.txsMtx.Lock()
-		defer mem.txsMtx.Unlock()
+func (mem *CListMempool) validateSignatures(txHash []byte, signatures map[string][]byte) (int64, error) {
+    var accumulatedVotingPower int64
+    var invalidSignatures []string
 
-		if elem, ok := mem.txsMap[txKey]; ok {
-			memTx := elem.Value.(*mempoolTx)
-			memTx.AddSignature(pubKey, signature)
-			mem.logger.Info("Add peer signature to transaction", "txKey", txKey)
-			return nil
+    // Log the transaction hash (and optionally some other tx details)
+    // info-level logging may be passed down as a logger parameter if needed.
+    // For example: logger.Info("Validating signatures", "txHash", fmt.Sprintf("%X", txHash))
+
+    for pubKeyStr, signature := range signatures {
+        // Convert the stored string back to a PubKey.
+		pubKeyBytes, err := hex.DecodeString(strings.ToLower(pubKeyStr))
+		if err != nil {
+			//
 		}
+		pubKeyAdrr := hexbytes.HexBytes(pubKeyBytes)
+        if err != nil {
+            invalidSignatures = append(invalidSignatures, pubKeyStr)
+            continue
+        }
 
-		return ErrTxNotFound
+        // Look up the validator by the public key's address.
+        _, validator := mem.validators.GetByAddress(pubKeyAdrr)
+		pubKey := validator.PubKey
+
+        if validator == nil {
+            // Using info-level log; ensure the output is consistent.
+            print("MEMPOOLTX INFO: Invalid signature from unknown validator")
+            invalidSignatures = append(invalidSignatures, pubKeyStr)
+            continue
+        }
+        // Log that we’re about to verify.
+        // print("MEMPOOLTX INFO: Verifying signature for validator " + pubKeyStr);
+
+        // Verify the signature against the transaction.
+        if !pubKey.VerifySignature(txHash, signature) {
+            invalidSignatures = append(invalidSignatures, pubKeyStr)
+            continue
+        }
+
+        accumulatedVotingPower += validator.VotingPower
+    }
+
+    if len(invalidSignatures) > 0 {
+        return accumulatedVotingPower, fmt.Errorf("invalid signatures found for public keys: %v", invalidSignatures)
+    }
+
+    return accumulatedVotingPower, nil
+}
+
+func (mem *CListMempool) signIfNeeded(txHash []byte, signatures map[string][]byte) (map[string][]byte, error) {
+	if mem.privVal == nil {
+		return nil, fmt.Errorf("private validator not available")
+	}
+
+	pubKey, err := (*mem.privVal).GetPubKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve node's public key: %w", err)
+	}
+
+	keyStr := pubKey.Address().String()
+
+	// Ensure the map is initialized before writing to it
+	if signatures == nil {
+		signatures = make(map[string][]byte)
+	}
+
+	if _, exists := signatures[keyStr]; exists {
+		mem.logger.Debug("Transaction already signed by this node", "txKey", txHash)
+		return signatures, nil
+	}
+
+	signature, err := (*mem.privVal).SignBytes(txHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	signatures[keyStr] = signature
+
+	mem.logger.Info("Signed transaction", "txHash", txHash, "pubKey", keyStr)
+	return signatures, nil
 }

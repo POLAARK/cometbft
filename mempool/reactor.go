@@ -40,9 +40,9 @@ type Reactor struct {
 
 	privVal *types.PrivValidator
 
-	txBroadcastThreshold int32
 	thresholdPercent int32
 	validators                  *types.ValidatorSet
+	txBroadcastThreshold int32
 }
 
 
@@ -71,6 +71,8 @@ func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool
 		thresholdPercent: thresholdPercent,
 		validators:  validators,
 	}
+	//TODOPB : That's a very ugly way of doing
+	mempool.setParams(validators, privVal, thresholdPercent)
 
 	memR.BaseReactor = *p2p.NewBaseReactor("Mempool", memR)
 	if waitSync {
@@ -79,7 +81,6 @@ func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool
 	}
 	memR.activePersistentPeersSemaphore = semaphore.NewWeighted(int64(memR.config.ExperimentalMaxGossipConnectionsToPersistentPeers))
 	memR.activeNonPersistentPeersSemaphore = semaphore.NewWeighted(int64(memR.config.ExperimentalMaxGossipConnectionsToNonPersistentPeers))
-	memR.Logger.Info("Validators on reactor", memR.validators.Validators)
 	return memR
 }
 
@@ -87,7 +88,7 @@ func (memR *Reactor) calculateTxBroadcastThreshold() {
     newThreshold := (memR.thresholdPercent * int32(memR.validators.TotalVotingPower())) / 100
 
     atomic.StoreInt32(&memR.txBroadcastThreshold, newThreshold) // Atomic store
-
+	memR.mempool.setThreshold(memR.txBroadcastThreshold)
 	//TODOPB: remove this
     memR.Logger.Info("Calculated txBroadcastThreshold",
         "thresholdPercent", memR.thresholdPercent,
@@ -214,29 +215,8 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			}
 			memR.mempool.metrics.SignaturesReceivedSize.Add(float64(totalSize))
 
+			memR.Logger.Info("Current transaction received", "signature size", len(protoTransaction.Signatures))
 			_, err1 := memR.TryAddTx(tx, e.Src, protoTransaction.Signatures)
-
-			memR.Logger.Info("Signature received,", "signatures", protoTransaction.Signatures)
-
-			signature, err := (*memR.privVal).SignBytes(tx.Hash())
-			if err != nil {
-				memR.Logger.Error("Can't sign this transactions", "txKey", tx.Hash())
-			}
-
-			pubKey, err := (*memR.privVal).GetPubKey()
-			if err != nil {
-				memR.Logger.Error("Can't get this privVal pubKey", "privVal")
-			}
-			err = memR.mempool.SignTransaction(tx.Key(), pubKey, signature)
-
-			if err != nil {
-				memR.Logger.Error("Failed to sign transaction", "err", err)
-			}
-
-			err = memR.mempool.AddAndValidateSignatures(tx.Key(), protoTransaction.Signatures, memR.validators, memR.txBroadcastThreshold)
-			if err != nil {
-				memR.Logger.Error("Failed to add signatures to transaction", "err", err)
-			}
 
 			if err1 != nil {
 				memR.Logger.Error("Failed to add transaction", "err", err1)

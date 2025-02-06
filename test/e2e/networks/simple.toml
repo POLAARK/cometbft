@@ -1,5 +1,5 @@
 log_level = "info"
-load_tx_size_bytes = 120
+load_tx_size_bytes = 100
 load_tx_batch_size = 5
 prometheus = true
 [node.validator00]
@@ -18,3 +18,7 @@ prometheus = true
 [node.validator13]
 [node.validator14]
 [node.validator15]
+[node.validator16]
+[node.validator17]
+[node.validator18]
+[node.validator19]
