@@ -111,7 +111,7 @@ def run_tests(payload_size, num_validators, threshold, load_time):
     except:
         print("Everything is already cleaned")
 
-
+    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "start"], cwd="test/e2e", check=True)
     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "start"], cwd="test/e2e", check=True, env=env)
 
     # Start capturing time before load begins
@@ -126,15 +126,26 @@ def run_tests(payload_size, num_validators, threshold, load_time):
     return start_time, end_time
 
 
+def get_git_branch():
+    """Retrieve the current Git branch name."""
+    try:
+        result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True)
+        branch_name = result.stdout.strip()
+        return branch_name.replace("/", "_")  # Sanitize branch name (replace `/` with `_`)
+    except subprocess.CalledProcessError:
+        return "unknown_branch"  # Fallback if the branch can't be determined
+
+
 def save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, all_metrics):
-    """Save aggregated (mean) time-series metrics to CSV in the correct order."""
+    """Save aggregated (mean) time-series metrics to CSV with the Git branch name included."""
+    branch_name = get_git_branch()
     directory = EXPORT_DIR
 
     # Ensure the directory exists
     os.makedirs(directory, exist_ok=True)
 
-    # Define the file path correctly
-    filename = f"{directory}/metrics_payload{payload}_validators{validators}_threshold{threshold}_loadtime{load_time}.csv"
+    # Define the file path with the branch name
+    filename = f"{directory}/{branch_name}_metrics_payload{payload}_validators{validators}_threshold{threshold}_loadtime{load_time}.csv"
 
     # Ensure header is only written once
     write_header = not os.path.isfile(filename)
@@ -162,20 +173,17 @@ def save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, a
                 all_metrics["total_transactions_in_consensus"].get(timestamp, 0)
             ])
 
-
 if __name__ == "__main__":
-    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
-    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "start"], cwd="test/e2e", check=True)
-    for payload in [120]:  # Varying payload sizes
-        for validators in [16]:  # Different validator configurations
+    for payload in [100]:  # Varying payload sizes , 250, 500
+        for validators in [20]:  # Different validator configurations 4, 8, 12, 16, 20
             for threshold in [100]:  # Different mempool thresholds
-                for load_time in [10]:  # Different load durations
+                for load_time in [5]:  # Different load durations 40
                     print(f"Running test: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
 
                     # Check if results already exist
-                    if check_existing_results(payload, validators, threshold, load_time):
-                        print(f"⚠️ Test already completed, skipping: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
-                        continue
+                    # if check_existing_results(payload, validators, threshold, load_time):
+                    #     print(f"⚠️ Test already completed, skipping: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
+                    #     continue
 
                     start_time, end_time = run_tests(payload, validators, threshold, load_time)
 
@@ -194,7 +202,6 @@ if __name__ == "__main__":
                     print(f"Saving data for Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
                     save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, all_metrics)
 
-                    # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
                     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "stop"], cwd="test/e2e", check=True)
                     try:
                         subprocess.run(["./build/runner", "-f", "networks/simple.toml", "cleanup"], cwd="test/e2e", check=True)
