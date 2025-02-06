@@ -6,7 +6,7 @@ import csv
 from datetime import datetime
 
 PROMETHEUS_URL = "http://localhost:9090/api/v1/query_range"
-EXPORT_DIR = "test/e2e/monitoring/exported_data"
+EXPORT_DIR = "test/e2e/monitoring/exported_data2"
 
 def check_existing_results(payload, validators, threshold, load_time):
     """Check if a test has already been completed based on the presence of its CSV file."""
@@ -111,7 +111,7 @@ def run_tests(payload_size, num_validators, threshold, load_time):
     except:
         print("Everything is already cleaned")
 
-    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "start"], cwd="test/e2e", check=True)
+
     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "start"], cwd="test/e2e", check=True, env=env)
 
     # Start capturing time before load begins
@@ -164,10 +164,12 @@ def save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, a
 
 
 if __name__ == "__main__":
-    for payload in [100, 250, 500]:  # Varying payload sizes
-        for validators in [4, 8, 12, 16, 20]:  # Different validator configurations
-            for threshold in [10, 25, 40, 50, 75, 90]:  # Different mempool thresholds
-                for load_time in [40]:  # Different load durations
+    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
+    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "start"], cwd="test/e2e", check=True)
+    for payload in [120]:  # Varying payload sizes
+        for validators in [16]:  # Different validator configurations
+            for threshold in [100]:  # Different mempool thresholds
+                for load_time in [10]:  # Different load durations
                     print(f"Running test: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
 
                     # Check if results already exist
@@ -192,7 +194,7 @@ if __name__ == "__main__":
                     print(f"Saving data for Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
                     save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, all_metrics)
 
-                    subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
+                    # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
                     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "stop"], cwd="test/e2e", check=True)
                     try:
                         subprocess.run(["./build/runner", "-f", "networks/simple.toml", "cleanup"], cwd="test/e2e", check=True)

@@ -153,6 +153,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 		for _, txBytes := range protoTxs {
 			memR.mempool.metrics.BytesReceived.Add(float64(len(txBytes)))
 			_, _ = memR.TryAddTx(types.Tx(txBytes), e.Src)
+			memR.mempool.metrics.TransactionsReceived.Add(1)
 		}
 
 	default:
@@ -305,6 +306,7 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			})
 			if success {
 				memR.mempool.metrics.BytesSent.Add(float64(txMessage.Size()))
+				memR.mempool.metrics.TransactionsSent.Add(float64(len(txMessage.Txs)))
 				break
 			}
 

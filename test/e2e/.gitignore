@@ -2,3 +2,4 @@ monitoring/data-grafana
 monitoring/data-prometheus
 monitoring/prometheus.yml
 monitoring/exported_data
+monitoring/exported_data2
