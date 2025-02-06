@@ -30,10 +30,12 @@ type mempoolTx struct {
 
 	// Number of valid signatures
 	signatureCount int32 // Atomic counter for signatures
-
 	// ids of peers who've sent us this tx (as a map for quick lookups).
 	// senders: PeerID -> struct{}
 	senders sync.Map
+
+	// Is the threshold reached on this transaction
+	isTresholdReached bool
 }
 
 func (memTx *mempoolTx) Tx() types.Tx {
@@ -53,6 +55,13 @@ func (memTx *mempoolTx) IsSender(peerID nodekey.ID) bool {
 	return ok
 }
 
+func (memTx *mempoolTx) SetThresholdReached(reached bool)  {
+	memTx.isTresholdReached = reached
+}
+
+func (memTx *mempoolTx) GetThresholdReached() bool {
+	return memTx.isTresholdReached
+}
 
 func (memTx *mempoolTx) ValidateSignatures(validators *types.ValidatorSet) (int64, error) {
     var accumulatedVotingPower int64
@@ -118,12 +127,20 @@ func (memTx *mempoolTx) GetSignatures() map[string][]byte {
     return copy
 }
 
-// SetSignatures safely sets the signatures map.
+// SetSignatures safely updates the signatures map, merging new signatures with existing ones.
 func (memTx *mempoolTx) SetSignatures(signatures map[string][]byte) {
 	memTx.signatureMutex.Lock()
 	defer memTx.signatureMutex.Unlock()
 
-	memTx.signatures = signatures
+	// If no signatures exist yet, initialize the map
+	if memTx.signatures == nil {
+		memTx.signatures = make(map[string][]byte)
+	}
+
+	// Merge new signatures into existing map
+	for pubKey, signature := range signatures {
+		memTx.signatures[pubKey] = signature
+	}
 }
 
 // AddSignature safely adds a signature to the map and increments the signature count.

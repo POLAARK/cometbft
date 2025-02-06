@@ -182,6 +182,9 @@ type Entry interface {
 	// SignatureCount returns the current number of valid signatures for the transaction.
 	SignatureCount() int
 
+	SetThresholdReached(reached bool)
+
+	GetThresholdReached() bool
 }
 
 // An iterator is used to iterate through the mempool entries.

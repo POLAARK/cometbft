@@ -11,6 +11,7 @@ import (
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/config"
+	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/internal/clist"
 	"github.com/cometbft/cometbft/libs/log"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
@@ -492,6 +493,7 @@ func (mem *CListMempool) addTx(tx types.Tx, gasWanted int64, sender nodekey.ID, 
 		gasWanted: gasWanted,
 		lane:      lane,
 		seq:       mem.addTxSeq,
+		isTresholdReached: false,
 	}
 	_ = memTx.addSender(sender)
 	e := txs.PushBack(memTx)
@@ -989,14 +991,55 @@ func (mem *CListMempool) AddSignatures(txKey types.TxKey, signatures map[string]
 	}
 
 	memTx := elem.Value.(*mempoolTx)
-	if memTx.signatures == nil {
-		memTx.signatures = make(map[string][]byte)
-	}
+	memTx.SetSignatures(signatures)
 
-	for pubKey, signature := range signatures {
-		memTx.signatures[pubKey] = signature
-	}
+	mem.logger.Info("Added signatures to transaction",
+		"txKey", txKey, "signaturesAdded", len(signatures), "totalSignatures", len(memTx.signatures))
 
-	mem.logger.Info("Added signatures to transaction", "txKey", txKey, "signatures", len(signatures))
 	return nil
+}
+
+func (mem *CListMempool) AddAndValidateSignatures(
+	txKey types.TxKey,
+	signatures map[string][]byte,
+	validators *types.ValidatorSet,
+	thresholdVotingPower int32,
+) error {
+	mem.txsMtx.Lock()
+	defer mem.txsMtx.Unlock()
+
+	elem, ok := mem.txsMap[txKey]
+	if !ok {
+		return ErrTxNotFound
+	}
+
+	memTx := elem.Value.(*mempoolTx)
+	memTx.SetSignatures(signatures)
+
+	// Validate all signatures and accumulate the voting power.
+	txVotingPower, err := memTx.ValidateSignatures(validators)
+	if err != nil {
+		return fmt.Errorf("signature validation failed: %w", err)
+	}
+
+	if txVotingPower >= int64(thresholdVotingPower) {
+		memTx.SetThresholdReached(true)
+		mem.logger.Info("Threshold reached", "txKey", txKey)
+	}
+
+	return nil
+}
+
+func (mem *CListMempool) SignTransaction(txKey types.TxKey, pubKey crypto.PubKey, signature []byte ) error {
+		mem.txsMtx.Lock()
+		defer mem.txsMtx.Unlock()
+
+		if elem, ok := mem.txsMap[txKey]; ok {
+			memTx := elem.Value.(*mempoolTx)
+			memTx.AddSignature(pubKey, signature)
+			mem.logger.Info("Add peer signature to transaction", "txKey", txKey)
+			return nil
+		}
+
+		return ErrTxNotFound
 }

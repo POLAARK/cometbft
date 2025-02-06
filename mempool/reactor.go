@@ -215,16 +215,31 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 			memR.mempool.metrics.SignaturesReceivedSize.Add(float64(totalSize))
 
 			_, err1 := memR.TryAddTx(tx, e.Src)
-			// ADD SIGNATURES AFTER !
-			// convertedSignatures, err := crypto_implementation.ConvertSignatures(protoTransaction.Signatures)
+
 			memR.Logger.Info("Signature received,", "signatureSize", len(protoTransaction.Signatures))
 
-			err := memR.mempool.AddSignatures(tx.Key(), protoTransaction.Signatures)
+			signature, err := (*memR.privVal).SignBytes(tx.Hash())
+			if err != nil {
+				memR.Logger.Error("Can't sign this transactions", "txKey", tx.Hash())
+			}
+
+			pubKey, err := (*memR.privVal).GetPubKey()
+			if err != nil {
+				memR.Logger.Error("Can't get this privVal pubKey", "privVal")
+			}
+			err = memR.mempool.SignTransaction(tx.Key(), pubKey, signature)
+
+			if err != nil {
+				memR.Logger.Error("Failed to sign transaction", "err", err)
+			}
+
+			err = memR.mempool.AddAndValidateSignatures(tx.Key(), protoTransaction.Signatures, memR.validators, memR.txBroadcastThreshold)
 			if err != nil {
 				memR.Logger.Error("Failed to add signatures to transaction", "err", err)
 			}
+
 			if err1 != nil {
-				memR.Logger.Error("Failed to add transaction", "err", err)
+				memR.Logger.Error("Failed to add transaction", "err", err1)
 				continue
 			}
 
@@ -347,21 +362,22 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			}
 		}
 
-		txVotingPower, err :=  memR.signAndValidate(entry.(*mempoolTx))
-		memR.Logger.Info("Current, transaction threshold",
-		"threshold", txVotingPower)
-		if err != nil {
-			memR.Logger.Error("Failed to sign and validate transaction", "error", err)
-			continue
-		}
+		// txVotingPower, err :=  memR.signAndValidate(entry.(*mempoolTx))
+		// memR.Logger.Info("Current, transaction threshold",
+		// "threshold", txVotingPower)
+		// if err != nil {
+		// 	memR.Logger.Error("Failed to sign and validate transaction", "error", err)
+		// 	continue
+		// }
 		// TODOPB : is this enough ?
 		// TODOPB : will the network sync or should we add a mechanism to push to consensus
-		if txVotingPower >= int64(atomic.LoadInt32(&memR.txBroadcastThreshold)) {
-			memR.Logger.Info("Transaction reached threshold, stopping broadcast",
-				"tx", log.NewLazySprintf("%X", entry.Tx().Hash()),
-				"threshold", atomic.LoadInt32(&memR.txBroadcastThreshold))
-			continue
-		}
+		// if txVotingPower >= int64(atomic.LoadInt32(&memR.txBroadcastThreshold)) {
+		// 	memR.Logger.Info("Transaction reached threshold, stopping broadcast",
+		// 		"tx", log.NewLazySprintf("%X", entry.Tx().Hash()),
+		// 		"threshold", atomic.LoadInt32(&memR.txBroadcastThreshold))
+		// 	continue
+		// }
+
 		// NOTE: Transaction batching was disabled due to
 		// https://github.com/tendermint/tendermint/issues/5796
 
@@ -376,7 +392,10 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 			continue
 		}
-
+		if entry.GetThresholdReached() {
+			memR.Logger.Info("Do not send, threshold reached")
+			continue
+		}
 		for {
 			memR.Logger.Debug("Sending transaction to peer",
 			"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
@@ -418,7 +437,7 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 				break
 			}
 
-			memR.Logger.Debug("Failed sending transaction to peer",
+			memR.Logger.Info("Failed sending transaction to peer",
 				"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 
 			select {

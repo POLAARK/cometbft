@@ -6,7 +6,7 @@ import csv
 from datetime import datetime
 
 PROMETHEUS_URL = "http://localhost:9090/api/v1/query_range"
-EXPORT_DIR = "test/e2e/monitoring/exported_data"
+EXPORT_DIR = "test/e2e/monitoring/exported_data2"
 
 def check_existing_results(payload, validators, threshold, load_time):
     """Check if a test has already been completed based on the presence of its CSV file."""
@@ -164,16 +164,18 @@ def save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, a
 
 
 if __name__ == "__main__":
+    # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
+    # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "start"], cwd="test/e2e", check=True)
     for payload in [120]:  # Varying payload sizes , 250, 500
-        for validators in [4]:  # Different validator configurations 4, 8, 12, 16, 20
-            for threshold in [80]:  # Different mempool thresholds
+        for validators in [16]:  # Different validator configurations 4, 8, 12, 16, 20
+            for threshold in [25]:  # Different mempool thresholds
                 for load_time in [10]:  # Different load durations 40
                     print(f"Running test: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
 
                     # Check if results already exist
-                    if check_existing_results(payload, validators, threshold, load_time):
-                        print(f"⚠️ Test already completed, skipping: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
-                        continue
+                    # if check_existing_results(payload, validators, threshold, load_time):
+                    #     print(f"⚠️ Test already completed, skipping: Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
+                    #     continue
 
                     start_time, end_time = run_tests(payload, validators, threshold, load_time)
 
@@ -192,7 +194,6 @@ if __name__ == "__main__":
                     print(f"Saving data for Payload={payload}, Validators={validators}, Threshold={threshold}, Time={load_time}")
                     save_metrics_to_csv(payload, validators, threshold, load_time, timestamps, all_metrics)
 
-                    # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "monitor", "stop"], cwd="test/e2e", check=True)
                     # subprocess.run(["./build/runner", "-f", "networks/simple.toml", "stop"], cwd="test/e2e", check=True)
                     # try:
                     #     subprocess.run(["./build/runner", "-f", "networks/simple.toml", "cleanup"], cwd="test/e2e", check=True)
