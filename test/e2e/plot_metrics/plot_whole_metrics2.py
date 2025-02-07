@@ -4,7 +4,7 @@ import glob
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
-EXPORT_DIR = "../monitoring/exported_data"
+EXPORT_DIR = "../monitoring/exported_data2"
 
 def main():
     # Gather all CSV files
@@ -28,8 +28,9 @@ def main():
 
     df = pd.concat(df_list, ignore_index=True)
 
+    payload = 100
     # Filter only configurations with Payload == 500 and Validators > 10
-    df = df[(df["Payload"] == 500) & (df["Validators"] > 10)]
+    df = df[(df["Payload"] == payload) & (df["Validators"] > 10)]
 
     # Create a combined Config column
     df["Config"] = df.apply(lambda row: f"PL={row['Payload']}, VAL={row['Validators']}", axis=1)
@@ -74,7 +75,7 @@ def main():
     ax.set_xticks([pos + bar_width * (len(thresholds) / 2) for pos in x])
     ax.set_xticklabels(configs, rotation=45, ha="right")
     ax.set_ylabel("Bytes")
-    ax.set_title("Message Composition: Signature Overhead vs. Other Bytes\n(Payload = 500, Validators > 10)")
+    ax.set_title("Message Composition: Signature Overhead vs. Other Bytes\n(Payload = "+ str(payload) +", Validators > 10)")
     plt.tight_layout()
     plt.show()
 

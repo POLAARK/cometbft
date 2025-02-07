@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -43,6 +44,9 @@ type Reactor struct {
 	thresholdPercent int32
 	validators                  *types.ValidatorSet
 	txBroadcastThreshold int32
+	gossipElector *p2p.GossipElector
+	broadcastingPeers []p2p.Peer
+	peersMtx          sync.RWMutex
 }
 
 
@@ -70,7 +74,9 @@ func NewReactor(config *cfg.MempoolConfig, privVal *types.PrivValidator, mempool
 		txBroadcastThreshold: thresholdPercent,
 		thresholdPercent: thresholdPercent,
 		validators:  validators,
+		gossipElector: p2p.NewGossipElector(validators, p2p.NewPeerSet()),
 	}
+
 	//TODOPB : That's a very ugly way of doing
 	mempool.setParams(validators, privVal, thresholdPercent)
 
@@ -181,6 +187,8 @@ func (memR *Reactor) AddPeer(peer p2p.Peer) {
 			memR.mempool.metrics.ActiveOutboundConnections.Add(1)
 			defer memR.mempool.metrics.ActiveOutboundConnections.Add(-1)
 			memR.calculateTxBroadcastThreshold()
+			memR.gossipElector.AddPeerToSet(peer)
+			memR.SetBroadCastingPeers(memR.gossipElector.SelectPeersForPropagation())
 			memR.broadcastTxRoutine(peer)
 		}()
 	}
@@ -214,8 +222,7 @@ func (memR *Reactor) Receive(e p2p.Envelope) {
 				totalSize += len(key) + len(sig)
 			}
 			memR.mempool.metrics.SignaturesReceivedSize.Add(float64(totalSize))
-
-			memR.Logger.Info("Current transaction received", "signature size", len(protoTransaction.Signatures))
+			memR.Logger.Info("Current transaction received", "signature size", protoTransaction.Signatures, "peer", e.Src.ID())
 			_, err1 := memR.TryAddTx(tx, e.Src, protoTransaction.Signatures)
 
 			if err1 != nil {
@@ -282,6 +289,22 @@ type PeerState interface {
 
 // Send new mempool txs to peer.
 func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
+
+	memR.peersMtx.RLock()
+	isAllowed := false
+	for _, p := range memR.broadcastingPeers {
+		if p.ID() == peer.ID() {
+			isAllowed = true
+			break
+		}
+	}
+	memR.peersMtx.RUnlock()
+
+	if !isAllowed {
+		memR.Logger.Info("Skipping broadcast, peer is not in broadcastingPeers", "peer", peer.ID())
+		return
+	}
+
 	// If the node is catching up, don't start this routine immediately.
 	if memR.WaitSync() {
 		select {
@@ -342,13 +365,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			}
 		}
 
-		// txVotingPower, err :=  memR.signAndValidate(entry.(*mempoolTx))
-		// memR.Logger.Info("Current, transaction threshold",
-		// "threshold", txVotingPower)
-		// if err != nil {
-		// 	memR.Logger.Error("Failed to sign and validate transaction", "error", err)
-		// 	continue
-		// }
 		// TODOPB : is this enough ?
 		// TODOPB : will the network sync or should we add a mechanism to push to consensus
 		// if txVotingPower >= int64(atomic.LoadInt32(&memR.txBroadcastThreshold)) {
@@ -433,30 +449,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 	}
 }
 
-func (memR *Reactor) signAndValidate(entry Entry) (int64, error) {
-    tx := entry.Tx()
-    txHash := tx.Hash()
-
-    // Sign transaction.
-    signature, err := (*memR.privVal).SignBytes(tx.Hash())
-    if err != nil {
-        return 0, fmt.Errorf("signing failed: %w", err)
-    }
-
-    // Get public key.
-    pubKey, err := (*memR.privVal).GetPubKey()
-    if err != nil {
-        return 0, fmt.Errorf("public key retrieval failed: %w", err)
-    }
-
-    // Add the new signature.
-    entry.AddSignature(pubKey, signature)
-
-    // Validate existing signatures.
-    txVotingPower, err := entry.ValidateSignatures(memR.validators)
-    if err != nil {
-        return 0, fmt.Errorf("signature validation failed: %w", err)
-    }
-    memR.Logger.Info("signAndValidate: signature validation succeeded", "txHash", fmt.Sprintf("%X", txHash))
-    return txVotingPower, nil
+func (memR *Reactor) SetBroadCastingPeers(peers []p2p.Peer){
+	memR.broadcastingPeers = peers;
 }

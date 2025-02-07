@@ -70,10 +70,6 @@ func (memTx *mempoolTx) ValidateSignatures(validators *types.ValidatorSet) (int6
     memTx.signatureMutex.Lock()
     defer memTx.signatureMutex.Unlock()
 
-    // Log the transaction hash (and optionally some other tx details)
-    // info-level logging may be passed down as a logger parameter if needed.
-    // For example: logger.Info("Validating signatures", "txHash", fmt.Sprintf("%X", txHash))
-
     for pubKeyStr, signature := range memTx.signatures {
         // Convert the stored string back to a PubKey.
 		pubKeyBytes, err := hex.DecodeString(strings.ToLower(pubKeyStr))
@@ -96,8 +92,6 @@ func (memTx *mempoolTx) ValidateSignatures(validators *types.ValidatorSet) (int6
             invalidSignatures = append(invalidSignatures, pubKeyStr)
             continue
         }
-        // Log that we’re about to verify.
-        // print("MEMPOOLTX INFO: Verifying signature for validator " + pubKeyStr);
 
         // Verify the signature against the transaction.
         if !pubKey.VerifySignature(memTx.Tx().Hash(), signature) {
