@@ -348,7 +348,7 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 				return
 			}
 		}
-
+		entry.AddCount()
 		// TODOPB : is this enough ?
 		// TODOPB : will the network sync or should we add a mechanism to push to consensus
 		if entry.SignatureCount() >= int(atomic.LoadInt32(&memR.txBroadcastThreshold)) {
@@ -377,10 +377,6 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 			memR.Logger.Debug("Sending transaction to peer",
 			"tx", log.NewLazySprintf("%X", txHash), "peer", peer.ID())
 
-			if err := memR.signAndValidate(entry.(*mempoolTx)); err != nil {
-				memR.Logger.Error("Failed to sign and validate transaction", "error", err)
-				continue
-			}
 			// The entry may have been removed from the mempool since it was
 			// chosen at the beginning of the loop. Skip it if that's the case.
 			if !memR.mempool.Contains(entry.Tx().Key()) {
@@ -432,27 +428,27 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 	}
 }
 
-func (memR *Reactor) signAndValidate(entry Entry) error {
-	tx := entry.Tx()
+// func (memR *Reactor) signAndValidate(entry Entry) error {
+// 	tx := entry.Tx()
 
-	// Validate existing signatures
-	if err := entry.ValidateSignatures(); err != nil {
-		return fmt.Errorf("signature validation failed: %w", err)
-	}
+// 	// Validate existing signatures
+// 	if err := entry.ValidateSignatures(); err != nil {
+// 		return fmt.Errorf("signature validation failed: %w", err)
+// 	}
 
-	// Sign transaction
-	signature, err := (*memR.privVal).SignBytes(tx) // TODOPB: SHOULD WE ONLY SIGN THE HASH OR THE WHOLE TX
-	if err != nil {
-		return fmt.Errorf("signing failed: %w", err)
-	}
+// 	// Sign transaction
+// 	signature, err := (*memR.privVal).SignBytes(tx) // TODOPB: SHOULD WE ONLY SIGN THE HASH OR THE WHOLE TX
+// 	if err != nil {
+// 		return fmt.Errorf("signing failed: %w", err)
+// 	}
 
-	// Get public key
-	pubKey, err := (*memR.privVal).GetPubKey()
-	if err != nil {
-		return fmt.Errorf("public key retrieval failed: %w", err)
-	}
+// 	// Get public key
+// 	pubKey, err := (*memR.privVal).GetPubKey()
+// 	if err != nil {
+// 		return fmt.Errorf("public key retrieval failed: %w", err)
+// 	}
 
-	// Add the new signature
-	entry.AddSignature(pubKey, signature)
-	return nil
-}
+// 	// Add the new signature
+
+// 	return nil
+// }

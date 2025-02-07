@@ -6,7 +6,6 @@ import (
 
 	abcicli "github.com/cometbft/cometbft/abci/client"
 	abci "github.com/cometbft/cometbft/abci/types"
-	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/p2p/nodekey"
 	"github.com/cometbft/cometbft/types"
 )
@@ -176,8 +175,8 @@ type Entry interface {
 	// SetSignatures replaces the current map of signatures with the given map.
 	SetSignatures(signatures map[string][]byte)
 
-	// AddSignature adds a new signature to the transaction for the given public key.
-	AddSignature(pubKey crypto.PubKey, signature []byte)
+	// AddCount adds a new signature to the transaction for the given public key.
+	AddCount()
 
 	// SignatureCount returns the current number of valid signatures for the transaction.
 	SignatureCount() int

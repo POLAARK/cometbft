@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cometbft/cometbft/crypto"
 	"github.com/cometbft/cometbft/crypto/crypto_implementation"
 	"github.com/cometbft/cometbft/p2p/nodekey"
 	"github.com/cometbft/cometbft/types"
@@ -97,18 +96,8 @@ func (memTx *mempoolTx) SetSignatures(signatures map[string][]byte) {
 	memTx.signatures = signatures
 }
 
-// AddSignature safely adds a signature to the map and increments the signature count.
-func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) {
-	pubKeyStr := string(pubKey.Bytes())
-
-	memTx.signatureMutex.Lock()
-	defer memTx.signatureMutex.Unlock()
-
-	if memTx.signatures == nil {
-		memTx.signatures = make(map[string][]byte)
-	}
-
-	memTx.signatures[pubKeyStr] = signature
+// AddCount safely adds a signature to the map and increments the signature count.
+func (memTx *mempoolTx) AddCount() {
 	atomic.AddInt32(&memTx.signatureCount, 1)
 }
 
