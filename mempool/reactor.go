@@ -432,31 +432,3 @@ func (memR *Reactor) broadcastTxRoutine(peer p2p.Peer) {
 		}
 	}
 }
-
-func (memR *Reactor) signAndValidate(entry Entry) (int64, error) {
-    tx := entry.Tx()
-    txHash := tx.Hash()
-
-    // Sign transaction.
-    signature, err := (*memR.privVal).SignBytes(tx.Hash())
-    if err != nil {
-        return 0, fmt.Errorf("signing failed: %w", err)
-    }
-
-    // Get public key.
-    pubKey, err := (*memR.privVal).GetPubKey()
-    if err != nil {
-        return 0, fmt.Errorf("public key retrieval failed: %w", err)
-    }
-
-    // Add the new signature.
-    entry.AddSignature(pubKey, signature)
-
-    // Validate existing signatures.
-    txVotingPower, err := entry.ValidateSignatures(memR.validators)
-    if err != nil {
-        return 0, fmt.Errorf("signature validation failed: %w", err)
-    }
-    memR.Logger.Info("signAndValidate: signature validation succeeded", "txHash", fmt.Sprintf("%X", txHash))
-    return txVotingPower, nil
-}

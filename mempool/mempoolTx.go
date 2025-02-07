@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cometbft/cometbft/crypto"
 	bytes "github.com/cometbft/cometbft/libs/bytes"
 	"github.com/cometbft/cometbft/p2p/nodekey"
 	"github.com/cometbft/cometbft/types"
@@ -30,12 +29,13 @@ type mempoolTx struct {
 
 	// Number of valid signatures
 	signatureCount int32 // Atomic counter for signatures
+	// Is the threshold reached on this transaction
+	isTresholdReached bool
+
 	// ids of peers who've sent us this tx (as a map for quick lookups).
 	// senders: PeerID -> struct{}
 	senders sync.Map
 
-	// Is the threshold reached on this transaction
-	isTresholdReached bool
 }
 
 func (memTx *mempoolTx) Tx() types.Tx {
@@ -70,10 +70,6 @@ func (memTx *mempoolTx) ValidateSignatures(validators *types.ValidatorSet) (int6
     memTx.signatureMutex.Lock()
     defer memTx.signatureMutex.Unlock()
 
-    // Log the transaction hash (and optionally some other tx details)
-    // info-level logging may be passed down as a logger parameter if needed.
-    // For example: logger.Info("Validating signatures", "txHash", fmt.Sprintf("%X", txHash))
-
     for pubKeyStr, signature := range memTx.signatures {
         // Convert the stored string back to a PubKey.
 		pubKeyBytes, err := hex.DecodeString(strings.ToLower(pubKeyStr))
@@ -96,8 +92,6 @@ func (memTx *mempoolTx) ValidateSignatures(validators *types.ValidatorSet) (int6
             invalidSignatures = append(invalidSignatures, pubKeyStr)
             continue
         }
-        // Log that we’re about to verify.
-        // print("MEMPOOLTX INFO: Verifying signature for validator " + pubKeyStr);
 
         // Verify the signature against the transaction.
         if !pubKey.VerifySignature(memTx.Tx().Hash(), signature) {
@@ -141,20 +135,6 @@ func (memTx *mempoolTx) SetSignatures(signatures map[string][]byte) {
 	for pubKey, signature := range signatures {
 		memTx.signatures[pubKey] = signature
 	}
-}
-
-// AddSignature safely adds a signature to the map and increments the signature count.
-func (memTx *mempoolTx) AddSignature(pubKey crypto.PubKey, signature []byte) {
-
-	memTx.signatureMutex.Lock()
-	defer memTx.signatureMutex.Unlock()
-
-	if memTx.signatures == nil {
-		memTx.signatures = make(map[string][]byte)
-	}
-
-	memTx.signatures[pubKey.Address().String()] = signature
-	atomic.AddInt32(&memTx.signatureCount, 1)
 }
 
 // SignatureCount returns the number of valid signatures.

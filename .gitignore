@@ -71,3 +71,4 @@ benchmarks.json
 gobenchdata-web.yml
 index.html
 overrides.css
+!FinalReport.pdf
