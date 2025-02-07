@@ -1,3 +1,21 @@
+# End of study project: CometBFT stake based mempool
+
+This project is an end-of-study initiative aimed at exploring implementations to reduce CometBFT's bandwidth usage.
+
+## Branches
+
+- Main Branch: This branch contains the vanilla CometBFT implementation, enhanced with metrics for tracking the total bytes sent and received.
+
+- Stake-Based Gossiping Implementation: Our primary implementation, which introduces stake-based gossiping, can be found on the feat/stable_signature_count branch.
+
+- Stake Threshold-Based Transaction Idea: The feat/stake_threshold_based_transaction_idea branch hosts an experimental approach to pre-calculate the stake of peers before sending transactions. This aims to prevent broadcasting to all peers indiscriminately.
+
+- Propagation Counting Peers: The feat/propagation_counting_peers branch contains a lightweight version of the idea that sending transactions to a random subset of peers, rather than all peers, can significantly reduce bandwidth usage.
+
+## Report
+
+Our report, available at the root of the repository as FinalReport.pdf, details our thought process, the specifics of our implementation, and the conclusions we have drawn from our experiments.
+
 # CometBFT
 
 [Byzantine-Fault Tolerant][bft] [State Machine Replication][smr]. Or
@@ -12,7 +30,7 @@
 [![Discord chat][discord-badge]][discord-url]
 
 | Branch  | Tests                                          | Linting                                     |
-|---------|------------------------------------------------|---------------------------------------------|
+| ------- | ---------------------------------------------- | ------------------------------------------- |
 | main    | [![Tests][tests-badge]][tests-url]             | [![Lint][lint-badge]][lint-url]             |
 | v1.x    | [![Tests][tests-badge-v1x]][tests-url-v1x]     | [![Lint][lint-badge-v1x]][lint-url-v1x]     |
 | v0.38.x | [![Tests][tests-badge-v038x]][tests-url-v038x] | [![Lint][lint-badge-v038x]][lint-url-v038x] |
@@ -76,7 +94,7 @@ Please see [SECURITY.md](./SECURITY.md).
 ## Minimum requirements
 
 | CometBFT version | Requirement | Version        | Tested with  |
-|------------------|-------------|----------------|--------------|
+| ---------------- | ----------- | -------------- | ------------ |
 | main             | Go version  | 1.23 or higher | up to 1.23.1 |
 | v1.x             | Go version  | 1.23 or higher | up to 1.23.1 |
 | v0.38.x          | Go version  | 1.22 or higher | up to 1.22   |
